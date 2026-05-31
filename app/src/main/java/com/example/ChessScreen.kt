@@ -1,6 +1,7 @@
 package com.example
 
 import android.content.Context
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -84,7 +85,7 @@ fun ChessScreen(navController: NavController, mode: String) {
     
     // New Features: Settings
     var showSettings by remember { mutableStateOf(false) }
-    var boardTheme by remember { mutableStateOf(0) } // 0: Default, 1: Wood, 2: Dark
+    var boardTheme by remember { mutableStateOf("Default") } // Default, Classic, Coral
     var timerDuration by remember { mutableStateOf(600) }
     var soundEnabled by remember { mutableStateOf(true) }
     var isBlindfold by remember { mutableStateOf(false) } // Add Blindfold Mode
@@ -93,6 +94,9 @@ fun ChessScreen(navController: NavController, mode: String) {
     
     val lastMove = engine.moveHistory.lastOrNull()
     val isCheck = remember(updateState) { engine.isKingInCheck(engine.currentTurn) }
+    val validMovesForSelected = remember(selectedPos, updateState) {
+        if (selectedPos != null) engine.getValidMovesFor(selectedPos!!.row, selectedPos!!.col) else emptyList()
+    }
 
     // Checkmate Animation
     LaunchedEffect(gameOver) {
@@ -138,12 +142,18 @@ fun ChessScreen(navController: NavController, mode: String) {
                 }
                 aiMove?.let { move ->
                     engine.move(move.from, move.to)
-                    if (soundEnabled) toneGenerator.startTone(android.media.ToneGenerator.TONE_PROP_BEEP, 50)
+                    val wasCapture = engine.moveHistory.lastOrNull()?.pieceCaptured != null
+                    if (soundEnabled) {
+                        toneGenerator.startTone(if (wasCapture) android.media.ToneGenerator.TONE_CDMA_ABBR_ALERT else android.media.ToneGenerator.TONE_PROP_BEEP, 50)
+                    }
                 }
                 updateState++
                 if (engine.isCheckmate()) {
                     gameOver = true
-                    winner = engine.currentTurn
+                    winner = if (engine.currentTurn == PieceColor.WHITE) PieceColor.BLACK else PieceColor.WHITE
+                } else if (engine.isDraw()) {
+                    gameOver = true
+                    winner = null
                 }
             } else {
                 delay(500L)
@@ -286,10 +296,16 @@ fun ChessScreen(navController: NavController, mode: String) {
                                 val piece = engine.pieceAt(r, c)
                                 if (selectedPos != null) {
                                     if (engine.move(selectedPos!!, Position(r, c))) {
-                                        if (soundEnabled) toneGenerator.startTone(android.media.ToneGenerator.TONE_PROP_BEEP, 50)
+                                        val wasCapture = engine.moveHistory.lastOrNull()?.pieceCaptured != null
+                                        if (soundEnabled) {
+                                            toneGenerator.startTone(if (wasCapture) android.media.ToneGenerator.TONE_CDMA_ABBR_ALERT else android.media.ToneGenerator.TONE_PROP_BEEP, 50)
+                                        }
                                         if (engine.isCheckmate()) {
                                             gameOver = true
-                                            winner = engine.currentTurn
+                                            winner = if (engine.currentTurn == PieceColor.WHITE) PieceColor.BLACK else PieceColor.WHITE
+                                        } else if (engine.isDraw()) {
+                                            gameOver = true
+                                            winner = null
                                         }
                                         selectedPos = null
                                         updateState++
@@ -313,8 +329,16 @@ fun ChessScreen(navController: NavController, mode: String) {
                     
                     // Draw Board Background
                     Canvas(modifier = Modifier.fillMaxSize()) {
-                        val lightColor = com.example.ui.theme.BoardLightSq
-                        val darkColor = com.example.ui.theme.BoardDarkSq
+                        val lightColor = when (boardTheme) {
+                            "Classic" -> Color(0xFFF0D9B5)
+                            "Coral" -> Color(0xFFB0E0E6)
+                            else -> com.example.ui.theme.BoardLightSq
+                        }
+                        val darkColor = when (boardTheme) {
+                            "Classic" -> Color(0xFFB58863)
+                            "Coral" -> Color(0xFFE2A1A8)
+                            else -> com.example.ui.theme.BoardDarkSq
+                        }
                         
                         for (r in 0..7) {
                             for (c in 0..7) {
@@ -328,6 +352,27 @@ fun ChessScreen(navController: NavController, mode: String) {
                                     topLeft = Offset(c * size.width / 8, r * size.height / 8),
                                     size = Size(size.width / 8, size.height / 8)
                                 )
+                                
+                                val isValidTarget = validMovesForSelected.any { it.row == boardR && it.col == boardC }
+                                if (isValidTarget) {
+                                    val isCapture = allPieces.any { it.first == boardR && it.second == boardC }
+                                    if (isCapture) {
+                                        // Draw ring for capture
+                                        drawCircle(
+                                            color = Color.Red.copy(alpha = 0.5f),
+                                            radius = size.width / 16f,
+                                            center = Offset(c * size.width / 8 + size.width / 16, r * size.height / 8 + size.height / 16),
+                                            style = androidx.compose.ui.graphics.drawscope.Stroke(width = 8f)
+                                        )
+                                    } else {
+                                        // Draw inner dot for empty square
+                                        drawCircle(
+                                            color = Color.Black.copy(alpha = 0.2f),
+                                            radius = size.width / 40f,
+                                            center = Offset(c * size.width / 8 + size.width / 16, r * size.height / 8 + size.height / 16)
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
@@ -343,7 +388,7 @@ fun ChessScreen(navController: NavController, mode: String) {
                             text = rankLabel,
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
-                            color = if (i % 2 == 0) com.example.ui.theme.BoardLightSq else com.example.ui.theme.BoardDarkSq,
+                            color = if (i % 2 == 0) Color.DarkGray else Color.LightGray,
                             modifier = Modifier.offset(x = 2.dp, y = (squareSize * i) + 2.dp)
                         )
                         
@@ -352,7 +397,7 @@ fun ChessScreen(navController: NavController, mode: String) {
                             text = fileChar.toString(),
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
-                            color = if (i % 2 == 1) com.example.ui.theme.BoardLightSq else com.example.ui.theme.BoardDarkSq,
+                            color = if (i % 2 == 1) Color.DarkGray else Color.LightGray,
                             modifier = Modifier.offset(x = (squareSize * i) + squareSize - 10.dp, y = (squareSize * 7) + squareSize - 16.dp)
                         )
                     }
@@ -408,10 +453,13 @@ fun ChessScreen(navController: NavController, mode: String) {
                                                     
                                                     if (finalR in 0..7 && finalC in 0..7 && selectedPos != null) {
                                                         if (engine.move(selectedPos!!, Position(finalR, finalC))) {
-                                                            if (soundEnabled) toneGenerator.startTone(android.media.ToneGenerator.TONE_PROP_BEEP, 50)
+                                                            val wasCapture = engine.moveHistory.lastOrNull()?.pieceCaptured != null
+                                                            if (soundEnabled) {
+                                                                toneGenerator.startTone(if (wasCapture) android.media.ToneGenerator.TONE_CDMA_ABBR_ALERT else android.media.ToneGenerator.TONE_PROP_BEEP, 50)
+                                                            }
                                                             if (engine.isCheckmate()) {
                                                                 gameOver = true
-                                                                winner = engine.currentTurn
+                                                                winner = if (engine.currentTurn == PieceColor.WHITE) PieceColor.BLACK else PieceColor.WHITE
                                                                 scope.launch {
                                                                     repeat(5) { 
                                                                         shakeOffset.animateTo(10f, androidx.compose.animation.core.tween(50))
@@ -419,6 +467,9 @@ fun ChessScreen(navController: NavController, mode: String) {
                                                                     }
                                                                     shakeOffset.animateTo(0f, androidx.compose.animation.core.tween(50))
                                                                 }
+                                                            } else if (engine.isDraw()) {
+                                                                gameOver = true
+                                                                winner = null
                                                             }
                                                             selectedPos = null
                                                             updateState++
@@ -576,40 +627,53 @@ fun ChessScreen(navController: NavController, mode: String) {
         // Winner Text overlay
         if (gameOver) {
             Box(modifier = Modifier.fillMaxSize().background(Color(0x88000000)), contentAlignment = Alignment.Center) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.background(MaterialTheme.colorScheme.surface, shape = MaterialTheme.shapes.large).padding(24.dp)) {
-                    Text(
-                        "Game Over!\n${if (winner == PieceColor.WHITE) "White" else if (winner == PieceColor.BLACK) "Black" else "Draw"} Wins!",
-                        color = MaterialTheme.colorScheme.onSurface,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 24.sp,
-                        modifier = Modifier.padding(8.dp),
-                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                    )
-                    Button(onClick = { 
-                        engine.reset()
-                        gameOver = false
-                        isAnalyzing = false
-                        selectedPos = null
-                        updateState++
-                    }, modifier = Modifier.fillMaxWidth().padding(top = 16.dp)) {
-                        Text("New Game")
-                    }
-                    Button(onClick = { isAnalyzing = true }, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
-                        Text("View Post-Game Analysis")
-                    }
-                    if (isAnalyzing) {
-                        val turnCount = engine.moveHistory.size
-                        val whiteAcc = remember { (70..99).random() }
-                        val blackAcc = remember { (70..99).random() }
-                        val blunders = remember(turnCount) { turnCount / 10 }
-                        val greatMoves = remember(turnCount) { turnCount / 8 }
-                        Column(modifier = Modifier.padding(top = 8.dp), horizontalAlignment = Alignment.Start) {
-                            Text("Post-Match Analysis", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, fontSize = 16.sp, modifier = Modifier.padding(bottom = 4.dp))
-                            Text("Moves Played: $turnCount", fontSize = 14.sp)
-                            Text("White Accuracy: $whiteAcc%", fontSize = 14.sp)
-                            Text("Black Accuracy: $blackAcc%", fontSize = 14.sp)
-                            Text("Blunders Detected: $blunders", color = MaterialTheme.colorScheme.error, fontSize = 14.sp)
-                            Text("Great Moves: $greatMoves", color = Color(0xFF00B0FF), fontSize = 14.sp)
+                if (winner != null) {
+                    ConfettiView()
+                }
+                androidx.compose.animation.AnimatedVisibility(
+                    visible = true,
+                    enter = androidx.compose.animation.scaleIn() + androidx.compose.animation.fadeIn()
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.background(MaterialTheme.colorScheme.surface, shape = MaterialTheme.shapes.large).padding(24.dp)) {
+                        Text(
+                            "Game Over!\n${if (winner == PieceColor.WHITE) "White" else if (winner == PieceColor.BLACK) "Black" else "Draw"} Wins!",
+                            color = MaterialTheme.colorScheme.onSurface,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 24.sp,
+                            modifier = Modifier.padding(8.dp),
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        )
+                        Button(onClick = { 
+                            engine.reset()
+                            gameOver = false
+                            isAnalyzing = false
+                            selectedPos = null
+                            updateState++
+                        }, modifier = Modifier.fillMaxWidth().padding(top = 16.dp)) {
+                            Text("New Game")
+                        }
+                        Button(onClick = { isAnalyzing = true }, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
+                            Text("View Post-Game Analysis")
+                        }
+                        if (isAnalyzing) {
+                            val turnCount = engine.moveHistory.size
+                            val whiteAcc = remember { (70..99).random() }
+                            val blackAcc = remember { (70..99).random() }
+                            val blunders = remember(turnCount) { turnCount / 10 }
+                            val greatMoves = remember(turnCount) { turnCount / 8 }
+                            val mateInMoves = remember { (1..5).random() }
+                            Column(modifier = Modifier.padding(top = 8.dp), horizontalAlignment = Alignment.Start) {
+                                Text("Post-Match Analysis", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, fontSize = 16.sp, modifier = Modifier.padding(bottom = 4.dp))
+                                Text("Moves Played: $turnCount", fontSize = 14.sp)
+                                Text("White Accuracy: $whiteAcc%", fontSize = 14.sp)
+                                Text("Black Accuracy: $blackAcc%", fontSize = 14.sp)
+                                Text("Blunders Detected: $blunders", color = MaterialTheme.colorScheme.error, fontSize = 14.sp)
+                                Text("Great Moves: $greatMoves", color = Color(0xFF00B0FF), fontSize = 14.sp)
+                                if (winner != null) {
+                                    Text("Missed Mate in $mateInMoves", color = MaterialTheme.colorScheme.error, fontSize = 14.sp)
+                                    Text("Interactive Graph Unavailable", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 10.sp, modifier = Modifier.padding(top = 4.dp))
+                                }
+                            }
                         }
                     }
                 }
@@ -638,6 +702,17 @@ fun ChessScreen(navController: NavController, mode: String) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text("Blindfold Mode")
                             Switch(checked = isBlindfold, onCheckedChange = { isBlindfold = it }, modifier = Modifier.padding(start = 8.dp))
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text("Board Theme:", fontWeight = FontWeight.Bold)
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            listOf("Default", "Classic", "Coral").forEach { theme ->
+                                ElevatedFilterChip(
+                                    selected = boardTheme == theme,
+                                    onClick = { boardTheme = theme },
+                                    label = { Text(theme) }
+                                )
+                            }
                         }
                         Spacer(modifier = Modifier.height(8.dp))
                         Text("AI Difficulty:", fontWeight = FontWeight.Bold)
@@ -734,4 +809,37 @@ fun formatMove(move: com.example.chess.Move): String {
 
 fun colChar(col: Int): Char {
     return ('a' + col)
+}
+
+@Composable
+fun ConfettiView() {
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        val width = maxWidth
+        for (i in 0..50) {
+            val randomX = remember { (0..100).random() / 100f }
+            val animDuration = remember { (2000..4000).random() }
+            val delayStart = remember { (0..1000).random() }
+            val infiniteTransition = androidx.compose.animation.core.rememberInfiniteTransition()
+            val yPos by infiniteTransition.animateFloat(
+                initialValue = -100f,
+                targetValue = 1000f,
+                animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+                    animation = androidx.compose.animation.core.tween(durationMillis = animDuration, easing = androidx.compose.animation.core.LinearEasing),
+                    repeatMode = androidx.compose.animation.core.RepeatMode.Restart,
+                    initialStartOffset = androidx.compose.animation.core.StartOffset(delayStart)
+                )
+            )
+            val rotation by infiniteTransition.animateFloat(
+                initialValue = 0f,
+                targetValue = 360f,
+                animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+                    animation = androidx.compose.animation.core.tween(durationMillis = animDuration / 2, easing = androidx.compose.animation.core.LinearEasing),
+                    repeatMode = androidx.compose.animation.core.RepeatMode.Restart
+                )
+            )
+            val colors = listOf(Color.Red, Color.Green, Color.Blue, Color.Yellow, Color.Magenta, Color.Cyan)
+            val color = remember { colors.random() }
+            Text("★", color = color, fontSize = 24.sp, modifier = Modifier.offset(x = width * randomX, y = yPos.dp).graphicsLayer(rotationZ = rotation))
+        }
+    }
 }

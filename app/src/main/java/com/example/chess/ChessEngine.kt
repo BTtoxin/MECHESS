@@ -142,6 +142,27 @@ class ChessEngine {
         return false
     }
     
+    fun isInsufficientMaterial(): Boolean {
+        // very simplified insufficient material check
+        val pieces = mutableListOf<Piece>()
+        for (r in 0..7) {
+            for (c in 0..7) {
+                val p = board[r][c]
+                if (p != null) pieces.add(p)
+            }
+        }
+        if (pieces.size == 2) return true // King vs King
+        if (pieces.size == 3) {
+            val nonKing = pieces.first { it.type != PieceType.KING }
+            if (nonKing.type == PieceType.KNIGHT || nonKing.type == PieceType.BISHOP) return true
+        }
+        return false
+    }
+
+    fun isDraw(): Boolean {
+        return isInsufficientMaterial() || moveHistory.size >= 100 // simplistic 50 full moves (100 plies) draw without pawn move/capture tracking
+    }
+
     fun isCheckmate(): Boolean {
         if (!isKingInCheck(currentTurn)) return false
         return !hasLegalMoves(currentTurn)
@@ -197,6 +218,20 @@ class ChessEngine {
         setupBoard()
     }
 
+    fun getValidMovesFor(r: Int, c: Int): List<Position> {
+        val validMoves = mutableListOf<Position>()
+        val p = board[r][c] ?: return validMoves
+        if (p.color != currentTurn) return validMoves
+        for (tr in 0..7) {
+            for (tc in 0..7) {
+                if (isValidMove(Position(r, c), Position(tr, tc))) {
+                    validMoves.add(Position(tr, tc))
+                }
+            }
+        }
+        return validMoves
+    }
+
     fun getAIMove(difficulty: com.example.chess.Difficulty): Move? {
         val possibleMoves = mutableListOf<Move>()
         for (r in 0..7) {
@@ -222,7 +257,30 @@ class ChessEngine {
                 if (captures.isNotEmpty()) captures.random() else possibleMoves.random()
             }
             com.example.chess.Difficulty.HARD -> {
-                possibleMoves.maxByOrNull { evaluateExpectedState(it) } ?: possibleMoves.random()
+                // Iterative Deepening / Alpha Beta setup
+                var bestMove: Move? = null
+                var bestScore = Int.MIN_VALUE
+                
+                // Sort moves (captures first)
+                possibleMoves.sortByDescending { it.pieceCaptured?.let { getPieceValue(it, 0, 0) } ?: 0 }
+                
+                for (move in possibleMoves) {
+                    val p = board[move.from.row][move.from.col]
+                    val captured = board[move.to.row][move.to.col]
+                    board[move.to.row][move.to.col] = p
+                    board[move.from.row][move.from.col] = null
+                    
+                    val score = -minimax(2, Int.MIN_VALUE, Int.MAX_VALUE, if (currentTurn == PieceColor.WHITE) PieceColor.BLACK else PieceColor.WHITE)
+                    
+                    board[move.from.row][move.from.col] = p
+                    board[move.to.row][move.to.col] = captured
+                    
+                    if (score > bestScore) {
+                        bestScore = score
+                        bestMove = move
+                    }
+                }
+                bestMove ?: possibleMoves.random()
             }
         }
     }
@@ -263,26 +321,52 @@ class ChessEngine {
         return score
     }
 
-    private fun evaluateExpectedState(move: Move, depth: Int = 2): Int {
-        val p = board[move.from.row][move.from.col]
-        val captured = board[move.to.row][move.to.col]
-        board[move.to.row][move.to.col] = p
-        board[move.from.row][move.from.col] = null
-
-        val score = if (depth > 0) {
-            // Simple Minimax search (very light)
-            val nextTurn = if (currentTurn == PieceColor.WHITE) PieceColor.BLACK else PieceColor.WHITE
-            val nextPossibleMoves = mutableListOf<Move>()
-            // ... (fill nextPossibleMoves)
-            evaluateBoard() // placeholder for recursive call
-        } else {
-            evaluateBoard()
+    private fun minimax(depth: Int, alpha: Int, beta: Int, turn: PieceColor): Int {
+        if (depth == 0) {
+            val sign = if (turn == PieceColor.WHITE) 1 else -1
+            return evaluateBoard() * sign
         }
-
-        board[move.from.row][move.from.col] = p
-        board[move.to.row][move.to.col] = captured
-
-        val sign = if (currentTurn == PieceColor.WHITE) 1 else -1
-        return score * sign
+        
+        val possibleMoves = mutableListOf<Move>()
+        for (r in 0..7) {
+            for (c in 0..7) {
+                val p = board[r][c]
+                if (p != null && p.color == turn) {
+                    for (tr in 0..7) {
+                        for (tc in 0..7) {
+                            if (isValidMove(Position(r, c), Position(tr, tc))) {
+                                possibleMoves.add(Move(Position(r, c), Position(tr, tc), p, pieceAt(tr, tc)))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        if (possibleMoves.isEmpty()) {
+            return if (isKingInCheck(turn)) -10000 else 0 // Checkmate vs stalemate
+        }
+        
+        possibleMoves.sortByDescending { it.pieceCaptured?.let { getPieceValue(it, 0, 0) } ?: 0 }
+        
+        var maxEval = Int.MIN_VALUE
+        var a = alpha
+        
+        for (move in possibleMoves) {
+            val p = board[move.from.row][move.from.col]
+            val captured = board[move.to.row][move.to.col]
+            board[move.to.row][move.to.col] = p
+            board[move.from.row][move.from.col] = null
+            
+            val eval = -minimax(depth - 1, -beta, -a, if (turn == PieceColor.WHITE) PieceColor.BLACK else PieceColor.WHITE)
+            
+            board[move.from.row][move.from.col] = p
+            board[move.to.row][move.to.col] = captured
+            
+            if (eval > maxEval) maxEval = eval
+            if (a < eval) a = eval
+            if (a >= beta) break
+        }
+        return maxEval
     }
 }
