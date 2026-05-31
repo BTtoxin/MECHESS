@@ -97,14 +97,18 @@ fun HomeScreen(navController: NavController) {
                 modifier = Modifier.height(260.dp)
             ) {
                 items(formats.size) { index ->
-                    val (time, type) = formats[index]
+                    val (timeFormat, type) = formats[index]
+                    val parts = timeFormat.split("+")
+                    val timeInSec = (parts[0].toIntOrNull() ?: 10) * 60
+                    val bumpInSec = parts.getOrNull(1)?.toIntOrNull() ?: 0
+                    
                     Surface(
                         color = MaterialTheme.colorScheme.surfaceVariant,
                         shape = MaterialTheme.shapes.medium,
-                        onClick = { navController.navigate("game/pvc") }
+                        onClick = { navController.navigate("game/pvc?time=$timeInSec&increment=$bumpInSec") }
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(16.dp)) {
-                            Text(time, fontWeight = FontWeight.Bold, fontSize = 20.sp)
+                            Text(timeFormat, fontWeight = FontWeight.Bold, fontSize = 20.sp)
                             Text(type, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }

@@ -74,9 +74,18 @@ class MainActivity : ComponentActivity() {
                             SplashScreen(navController)
                         }
                         composable("home") { HomeScreen(navController) }
-                        composable("game/{mode}") { backStackEntry ->
+                        composable(
+                            route = "game/{mode}?time={time}&increment={increment}",
+                            arguments = listOf(
+                                androidx.navigation.navArgument("mode") { defaultValue = "pvc" },
+                                androidx.navigation.navArgument("time") { defaultValue = "600" },
+                                androidx.navigation.navArgument("increment") { defaultValue = "0" }
+                            )
+                        ) { backStackEntry ->
                             val mode = backStackEntry.arguments?.getString("mode") ?: "pvc"
-                            ChessScreen(navController, mode)
+                            val time = backStackEntry.arguments?.getString("time")?.toIntOrNull() ?: 600
+                            val increment = backStackEntry.arguments?.getString("increment")?.toIntOrNull() ?: 0
+                            ChessScreen(navController, mode, time, increment)
                         }
                         composable("settings") { SettingsScreen(navController) }
                     }

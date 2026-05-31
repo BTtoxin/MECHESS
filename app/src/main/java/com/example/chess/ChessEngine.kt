@@ -43,9 +43,9 @@ class ChessEngine {
     fun pieceAt(pos: Position): Piece? = board[pos.row][pos.col]
     fun pieceAt(row: Int, col: Int): Piece? = board[row][col]
 
-    fun isValidMove(from: Position, to: Position): Boolean {
+    fun isValidMove(from: Position, to: Position, turnToCheck: PieceColor = currentTurn): Boolean {
         val piece = pieceAt(from) ?: return false
-        if (piece.color != currentTurn) return false
+        if (piece.color != turnToCheck) return false
         val destPiece = pieceAt(to)
         if (destPiece?.color == piece.color) return false
         
@@ -175,7 +175,7 @@ class ChessEngine {
                 if (p != null && p.color == color) {
                     for (tr in 0..7) {
                         for (tc in 0..7) {
-                            if (isValidMove(Position(r, c), Position(tr, tc))) return true
+                            if (isValidMove(Position(r, c), Position(tr, tc), color)) return true
                         }
                     }
                 }
@@ -369,7 +369,7 @@ class ChessEngine {
                 if (p != null && p.color == turn) {
                     for (tr in 0..7) {
                         for (tc in 0..7) {
-                            if (isValidMove(Position(r, c), Position(tr, tc))) {
+                            if (isValidMove(Position(r, c), Position(tr, tc), turn)) {
                                 possibleMoves.add(Move(Position(r, c), Position(tr, tc), p, pieceAt(tr, tc)))
                             }
                         }

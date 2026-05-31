@@ -48,7 +48,7 @@ import kotlinx.coroutines.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ChessScreen(navController: NavController, mode: String) {
+fun ChessScreen(navController: NavController, mode: String, initialTime: Int = 600, increment: Int = 0) {
     val haptics = LocalHapticFeedback.current
     var isFlipped by remember { mutableStateOf(false) }
     
@@ -79,8 +79,8 @@ fun ChessScreen(navController: NavController, mode: String) {
     var selectedPos by remember { mutableStateOf<Position?>(null) }
     var updateState by remember { mutableStateOf(0) }
     var isPaused by remember { mutableStateOf(false) }
-    var whiteTime by remember { mutableStateOf(600) } // 10 minutes
-    var blackTime by remember { mutableStateOf(600) }
+    var whiteTime by remember { mutableStateOf(initialTime) }
+    var blackTime by remember { mutableStateOf(initialTime) }
     var gameOver by remember { mutableStateOf(false) }
     var winner by remember { mutableStateOf<PieceColor?>(null) }
     var isAnalyzing by remember { mutableStateOf(false) }
@@ -88,7 +88,7 @@ fun ChessScreen(navController: NavController, mode: String) {
     // New Features: Settings
     var showSettings by remember { mutableStateOf(false) }
     var boardTheme by remember { mutableStateOf("Default") } // Default, Classic, Coral
-    var timerDuration by remember { mutableStateOf(600) }
+    var timerDuration by remember { mutableStateOf(initialTime) }
     
     val prefs = context.getSharedPreferences("chess_prefs", android.content.Context.MODE_PRIVATE)
     var soundEnabled by remember { mutableStateOf(prefs.getBoolean("soundEnabled", true)) }
@@ -225,7 +225,14 @@ fun ChessScreen(navController: NavController, mode: String) {
                     engine.getAIMove(difficulty)
                 }
                 aiMove?.let { move ->
-                    engine.move(move.from, move.to)
+                    val wasMoveValid = engine.move(move.from, move.to)
+                    if (wasMoveValid) {
+                        if (engine.currentTurn == PieceColor.WHITE) {
+                            blackTime += increment
+                        } else {
+                            whiteTime += increment
+                        }
+                    }
                     val wasCapture = engine.moveHistory.lastOrNull()?.pieceCaptured != null
                     if (soundEnabled) {
                         toneGenerator.startTone(if (wasCapture) android.media.ToneGenerator.TONE_CDMA_ABBR_ALERT else android.media.ToneGenerator.TONE_PROP_BEEP, 50)
@@ -351,7 +358,7 @@ fun ChessScreen(navController: NavController, mode: String) {
                 Text("Captured: ", style = MaterialTheme.typography.labelSmall)
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                     items(whiteCaptured) { piece ->
-                        Text(getPieceSymbol(piece.type, piece.color), fontSize = 16.sp, color = if (piece.color == PieceColor.WHITE) Color.White else Color.Black)
+                        Text(getPieceSymbol(piece.type, piece.color), fontSize = 16.sp, color = if (piece.color == PieceColor.WHITE) Color.White else Color.Black, style = androidx.compose.ui.text.TextStyle(shadow = androidx.compose.ui.graphics.Shadow(color = Color.Black.copy(alpha = 0.8f), blurRadius = 2f)))
                     }
                 }
             }
@@ -360,7 +367,7 @@ fun ChessScreen(navController: NavController, mode: String) {
             if (isCheck && !gameOver) {
                 Text("Check!", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.titleMedium, modifier = Modifier.align(Alignment.CenterHorizontally))
             }
-            Row(modifier = Modifier.fillMaxWidth().aspectRatio(1f), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            Row(modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Max), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 // Evaluation Bar
                 val evalScore = remember(updateState) { engine.evaluateBoard() }
                 // clamp evalScore between -900 and +900 roughly for mapping
@@ -372,29 +379,18 @@ fun ChessScreen(navController: NavController, mode: String) {
                     Box(modifier = Modifier.fillMaxWidth().fillMaxHeight(fillHeight).background(Color.White).align(Alignment.BottomCenter))
                 }
 
-                Row(modifier = Modifier.fillMaxWidth().weight(1f), verticalAlignment = Alignment.CenterVertically) {
-                    
-                    // Evaluation Bar
-                    val evalScore by androidx.compose.animation.core.animateFloatAsState(
-                        targetValue = if (engine.currentTurn == PieceColor.WHITE) 0.5f else 0.4f, // Dummy logic for eval
-                        animationSpec = androidx.compose.animation.core.tween(500)
-                    )
-                    Box(modifier = Modifier.fillMaxHeight().width(12.dp).background(Color.DarkGray)) {
-                        Box(modifier = Modifier.fillMaxWidth().fillMaxHeight(evalScore).background(Color.White).align(Alignment.BottomCenter))
-                    }
-                    
-                    ElevatedCard(
-                        modifier = Modifier.weight(1f).fillMaxHeight().padding(4.dp).graphicsLayer(
-                            translationX = shakeOffset.value,
-                            shadowElevation = 24f,
-                            shape = androidx.compose.foundation.shape.RoundedCornerShape(6.dp),
-                            clip = true
-                        ).border(BorderStroke(8.dp, androidx.compose.ui.graphics.Brush.linearGradient(
-                            colors = listOf(Color(0xFF6B4226), Color(0xFF3b2110))
-                        )), androidx.compose.foundation.shape.RoundedCornerShape(6.dp)), 
-                        elevation = CardDefaults.elevatedCardElevation(0.dp)
-                    ) {
-                val currentPaused by rememberUpdatedState(isPaused)
+                ElevatedCard(
+                    modifier = Modifier.weight(1f).aspectRatio(0.9f).padding(4.dp).graphicsLayer(
+                        translationX = shakeOffset.value,
+                        shadowElevation = 24f,
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(6.dp),
+                        clip = true
+                    ).border(BorderStroke(8.dp, androidx.compose.ui.graphics.Brush.linearGradient(
+                        colors = listOf(Color(0xFF6B4226), Color(0xFF3b2110))
+                    )), androidx.compose.foundation.shape.RoundedCornerShape(6.dp)), 
+                    elevation = CardDefaults.elevatedCardElevation(0.dp)
+                ) {
+            val currentPaused by rememberUpdatedState(isPaused)
                 val currentGameOver by rememberUpdatedState(gameOver)
                 val currentSpectating by rememberUpdatedState(isSpectating)
 
@@ -410,8 +406,14 @@ fun ChessScreen(navController: NavController, mode: String) {
                                 haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                 val piece = engine.pieceAt(r, c)
                                 if (selectedPos != null) {
-                                    if (engine.move(selectedPos!!, Position(r, c))) {
-                                        val wasCapture = engine.moveHistory.lastOrNull()?.pieceCaptured != null
+                                        val wasMoveValid = engine.move(selectedPos!!, Position(r, c))
+                                        if (wasMoveValid) {
+                                            if (engine.currentTurn == PieceColor.WHITE) {
+                                                blackTime += increment
+                                            } else {
+                                                whiteTime += increment
+                                            }
+                                            val wasCapture = engine.moveHistory.lastOrNull()?.pieceCaptured != null
                                         if (soundEnabled) {
                                             toneGenerator.startTone(if (wasCapture) android.media.ToneGenerator.TONE_CDMA_ABBR_ALERT else android.media.ToneGenerator.TONE_PROP_BEEP, 50)
                                         }
@@ -568,7 +570,13 @@ fun ChessScreen(navController: NavController, mode: String) {
                                                     val finalR = if (isFlipped) 7 - targetR else targetR
                                                     
                                                     if (finalR in 0..7 && finalC in 0..7 && selectedPos != null) {
-                                                        if (engine.move(selectedPos!!, Position(finalR, finalC))) {
+                                                        val wasMoveValid = engine.move(selectedPos!!, Position(finalR, finalC))
+                                                        if (wasMoveValid) {
+                                                            if (engine.currentTurn == PieceColor.WHITE) {
+                                                                blackTime += increment
+                                                            } else {
+                                                                whiteTime += increment
+                                                            }
                                                             val wasCapture = engine.moveHistory.lastOrNull()?.pieceCaptured != null
                                                             if (soundEnabled) {
                                                                 toneGenerator.startTone(if (wasCapture) android.media.ToneGenerator.TONE_CDMA_ABBR_ALERT else android.media.ToneGenerator.TONE_PROP_BEEP, 50)
@@ -645,14 +653,13 @@ fun ChessScreen(navController: NavController, mode: String) {
                     }
                 } // closes BoxWithConstraints
             } // closes ElevatedCard
-            } // closes Row containing EvalBar and Board
-
+            
             // Captured by Black (White pieces captured)
             Row(modifier = Modifier.fillMaxWidth().height(32.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text("Captured: ", style = MaterialTheme.typography.labelSmall)
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                     items(blackCaptured) { piece ->
-                        Text(getPieceSymbol(piece.type, piece.color), fontSize = 16.sp, color = if (piece.color == PieceColor.WHITE) Color.White else Color.Black)
+                        Text(getPieceSymbol(piece.type, piece.color), fontSize = 16.sp, color = if (piece.color == PieceColor.WHITE) Color.White else Color.Black, style = androidx.compose.ui.text.TextStyle(shadow = androidx.compose.ui.graphics.Shadow(color = Color.Black.copy(alpha = 0.8f), blurRadius = 2f)))
                     }
                 }
             }                
@@ -974,7 +981,7 @@ fun formatTime(seconds: Int): String {
 }
 
 fun getPieceSymbol(type: PieceType, color: PieceColor): String {
-    return when(type) {
+    val char = when(type) {
         PieceType.KING -> "♚"
         PieceType.QUEEN -> "♛"
         PieceType.ROOK -> "♜"
@@ -982,6 +989,7 @@ fun getPieceSymbol(type: PieceType, color: PieceColor): String {
         PieceType.KNIGHT -> "♞"
         PieceType.PAWN -> "♟"
     }
+    return char + "\uFE0E"
 }
 
 fun getPieceChar(type: com.example.chess.PieceType): String {
