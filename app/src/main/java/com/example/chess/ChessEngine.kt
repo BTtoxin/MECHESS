@@ -259,13 +259,21 @@ class ChessEngine {
         return score
     }
 
-    private fun evaluateExpectedState(move: Move): Int {
+    private fun evaluateExpectedState(move: Move, depth: Int = 2): Int {
         val p = board[move.from.row][move.from.col]
         val captured = board[move.to.row][move.to.col]
         board[move.to.row][move.to.col] = p
         board[move.from.row][move.from.col] = null
 
-        val score = evaluateBoard()
+        val score = if (depth > 0) {
+            // Simple Minimax search (very light)
+            val nextTurn = if (currentTurn == PieceColor.WHITE) PieceColor.BLACK else PieceColor.WHITE
+            val nextPossibleMoves = mutableListOf<Move>()
+            // ... (fill nextPossibleMoves)
+            evaluateBoard() // placeholder for recursive call
+        } else {
+            evaluateBoard()
+        }
 
         board[move.from.row][move.from.col] = p
         board[move.to.row][move.to.col] = captured
