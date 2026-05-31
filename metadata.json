@@ -1,0 +1,6 @@
+{
+  "name": "MECHESS",
+  "description": "A comprehensive local multi-player chess game by ashu mehta, featuring rapid timers, themes, history, and animations.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
