@@ -91,27 +91,32 @@ fun ChessScreen(navController: NavController, isSpectating: Boolean) {
     }
     
     var difficulty by remember { mutableStateOf(com.example.chess.Difficulty.MEDIUM) }
+    var gameMode by remember { mutableStateOf("PVC") } // "PVC" or "PVP"
     var isSpectatingMode by remember { mutableStateOf(isSpectating) }
 
-    LaunchedEffect(isSpectatingMode, isPaused, gameOver, updateState) {
-        if (!isPaused && !gameOver && (engine.currentTurn == PieceColor.BLACK || isSpectatingMode)) {
-            delay(1000L)
-            val aiMove = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
-                engine.getAIMove(difficulty)
-            }
-            aiMove?.let { move ->
-                engine.move(move.from, move.to)
-            }
-            if (soundEnabled) toneGenerator.startTone(android.media.ToneGenerator.TONE_PROP_PROMPT, 50)
-            updateState++
-            if (engine.isCheckmate()) {
-                gameOver = true
-                winner = engine.currentTurn
+    LaunchedEffect(isSpectatingMode, isPaused, gameOver, gameMode) {
+        while (true) {
+            if (!isPaused && !gameOver && gameMode == "PVC" && (engine.currentTurn == PieceColor.BLACK || isSpectatingMode)) {
+                delay(500L) // Faster AI
+                val aiMove = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+                    engine.getAIMove(difficulty)
+                }
+                aiMove?.let { move ->
+                    engine.move(move.from, move.to)
+                    if (soundEnabled) toneGenerator.startTone(android.media.ToneGenerator.TONE_PROP_BEEP, 50)
+                }
+                updateState++
+                if (engine.isCheckmate()) {
+                    gameOver = true
+                    winner = engine.currentTurn
+                }
+            } else {
+                delay(500L)
             }
         }
     }
-    LaunchedEffect(isPaused, gameOver) {
-        if (!isPaused && !gameOver) {
+    LaunchedEffect(isPaused, gameOver, gameMode) {
+        if (!isPaused && !gameOver && gameMode == "PVC") {
             while (true) {
                 delay(1000L)
                 if (engine.currentTurn == PieceColor.WHITE) {
@@ -331,10 +336,11 @@ fun ChessScreen(navController: NavController, isSpectating: Boolean) {
                                             onDragEnd = {
                                                 if (isDragging) {
                                                     isDragging = false
-                                                    val dropXPx = animX.toPx() + dragOffset.x + (squareSize.toPx() / 2)
-                                                    val dropYPx = animY.toPx() + dragOffset.y + (squareSize.toPx() / 2)
+                                                    val dropXPx = (c * squareSize.toPx()) + dragOffset.x + (squareSize.toPx() / 2)
+                                                    val dropYPx = (r * squareSize.toPx()) + dragOffset.y + (squareSize.toPx() / 2)
                                                     var dropC = (dropXPx / squareSize.toPx()).toInt()
                                                     var dropR = (dropYPx / squareSize.toPx()).toInt()
+                                                    
                                                     if (isFlipped) {
                                                         dropC = 7 - dropC
                                                         dropR = 7 - dropR
@@ -548,9 +554,13 @@ fun ChessScreen(navController: NavController, isSpectating: Boolean) {
                         Text("${timerDuration / 60} mins")
                         
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("Sound Effects")
-                            Switch(checked = soundEnabled, onCheckedChange = { soundEnabled = it })
+                            Text("Mode:")
+                            Spacer(modifier = Modifier.width(8.dp))
+                            FilterChip(selected = gameMode == "PVP", onClick = { gameMode = "PVP" }, label = { Text("PvP") })
+                            Spacer(modifier = Modifier.width(4.dp))
+                            FilterChip(selected = gameMode == "PVC", onClick = { gameMode = "PVC" }, label = { Text("PvC") })
                         }
+                        
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text("Blindfold Mode")
                             Switch(checked = isBlindfold, onCheckedChange = { isBlindfold = it }, modifier = Modifier.padding(start = 8.dp))
