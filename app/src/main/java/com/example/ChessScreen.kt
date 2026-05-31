@@ -87,10 +87,53 @@ fun ChessScreen(navController: NavController, mode: String) {
     var showSettings by remember { mutableStateOf(false) }
     var boardTheme by remember { mutableStateOf("Default") } // Default, Classic, Coral
     var timerDuration by remember { mutableStateOf(600) }
-    var soundEnabled by remember { mutableStateOf(true) }
+    
+    val prefs = context.getSharedPreferences("chess_prefs", android.content.Context.MODE_PRIVATE)
+    var soundEnabled by remember { mutableStateOf(prefs.getBoolean("soundEnabled", true)) }
+    var musicEnabled by remember { mutableStateOf(prefs.getBoolean("musicEnabled", false)) }
+    
     var isBlindfold by remember { mutableStateOf(false) } // Add Blindfold Mode
     val boardAlpha = remember { androidx.compose.animation.core.Animatable(1f) }
     val shakeOffset = remember { androidx.compose.animation.core.Animatable(0f) }
+    
+    // Background Music
+    val mediaPlayer = remember { android.media.MediaPlayer() }
+    
+    DisposableEffect(Unit) {
+        try {
+            val uri = android.media.RingtoneManager.getDefaultUri(android.media.RingtoneManager.TYPE_RINGTONE)
+            mediaPlayer.setDataSource(context, uri)
+            mediaPlayer.prepare()
+            mediaPlayer.isLooping = true
+            mediaPlayer.setVolume(0.2f, 0.2f)
+            if (musicEnabled) {
+                mediaPlayer.start()
+            }
+        } catch (e: Exception) {
+            // Ignored
+        }
+        onDispose {
+            try {
+                if (mediaPlayer.isPlaying) mediaPlayer.stop()
+                mediaPlayer.release()
+            } catch (e: Exception) {}
+        }
+    }
+    
+    LaunchedEffect(musicEnabled) {
+        prefs.edit().putBoolean("musicEnabled", musicEnabled).apply()
+        try {
+            if (musicEnabled && !mediaPlayer.isPlaying) {
+                mediaPlayer.start()
+            } else if (!musicEnabled && mediaPlayer.isPlaying) {
+                mediaPlayer.pause()
+            }
+        } catch (e: Exception) {}
+    }
+    
+    LaunchedEffect(soundEnabled) {
+        prefs.edit().putBoolean("soundEnabled", soundEnabled).apply()
+    }
     
     val lastMove = engine.moveHistory.lastOrNull()
     val isCheck = remember(updateState) { engine.isKingInCheck(engine.currentTurn) }
@@ -149,6 +192,7 @@ fun ChessScreen(navController: NavController, mode: String) {
                 }
                 updateState++
                 if (engine.isCheckmate()) {
+                    if (soundEnabled) toneGenerator.startTone(android.media.ToneGenerator.TONE_SUP_CONFIRM, 200)
                     gameOver = true
                     winner = if (engine.currentTurn == PieceColor.WHITE) PieceColor.BLACK else PieceColor.WHITE
                 } else if (engine.isDraw()) {
@@ -312,6 +356,7 @@ fun ChessScreen(navController: NavController, mode: String) {
                                             toneGenerator.startTone(if (wasCapture) android.media.ToneGenerator.TONE_CDMA_ABBR_ALERT else android.media.ToneGenerator.TONE_PROP_BEEP, 50)
                                         }
                                         if (engine.isCheckmate()) {
+                                            if (soundEnabled) toneGenerator.startTone(android.media.ToneGenerator.TONE_SUP_CONFIRM, 200)
                                             gameOver = true
                                             winner = if (engine.currentTurn == PieceColor.WHITE) PieceColor.BLACK else PieceColor.WHITE
                                         } else if (engine.isDraw()) {
@@ -469,6 +514,7 @@ fun ChessScreen(navController: NavController, mode: String) {
                                                                 toneGenerator.startTone(if (wasCapture) android.media.ToneGenerator.TONE_CDMA_ABBR_ALERT else android.media.ToneGenerator.TONE_PROP_BEEP, 50)
                                                             }
                                                             if (engine.isCheckmate()) {
+                                                                if (soundEnabled) toneGenerator.startTone(android.media.ToneGenerator.TONE_SUP_CONFIRM, 200)
                                                                 gameOver = true
                                                                 winner = if (engine.currentTurn == PieceColor.WHITE) PieceColor.BLACK else PieceColor.WHITE
                                                                 scope.launch {
@@ -744,6 +790,14 @@ fun ChessScreen(navController: NavController, mode: String) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text("Blindfold Mode")
                             Switch(checked = isBlindfold, onCheckedChange = { isBlindfold = it }, modifier = Modifier.padding(start = 8.dp))
+                        }
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("Sound Effects")
+                            Switch(checked = soundEnabled, onCheckedChange = { soundEnabled = it }, modifier = Modifier.padding(start = 8.dp))
+                        }
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("Background Music")
+                            Switch(checked = musicEnabled, onCheckedChange = { musicEnabled = it }, modifier = Modifier.padding(start = 8.dp))
                         }
                         Spacer(modifier = Modifier.height(8.dp))
                         Text("Board Theme:", fontWeight = FontWeight.Bold)
