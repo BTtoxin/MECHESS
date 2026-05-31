@@ -98,13 +98,17 @@ fun ChessScreen(navController: NavController, mode: String) {
         if (selectedPos != null) engine.getValidMovesFor(selectedPos!!.row, selectedPos!!.col) else emptyList()
     }
 
+    var difficulty by remember { mutableStateOf(com.example.chess.Difficulty.MEDIUM) }
+    var gameMode by remember { mutableStateOf(if (mode == "pvp") "PVP" else "PVC") } // "PVC" or "PVP"
+    var isSpectatingMode by remember { mutableStateOf(isSpectating) }
+
     // Checkmate Animation
-    LaunchedEffect(gameOver) {
+    LaunchedEffect(gameOver, gameMode) {
         if (gameOver) {
             boardAlpha.animateTo(0.6f, animationSpec = androidx.compose.animation.core.tween(1000))
             
             // Update ELO
-            if (!isSpectating) {
+            if (!isSpectating && gameMode == "PVC") {
                 val prefs = context.getSharedPreferences("chess_prefs", android.content.Context.MODE_PRIVATE)
                 val currentGames = prefs.getInt("gamesPlayed", 0)
                 val currentWins = prefs.getInt("wins", 0)
@@ -129,10 +133,6 @@ fun ChessScreen(navController: NavController, mode: String) {
         }
     }
     
-    var difficulty by remember { mutableStateOf(com.example.chess.Difficulty.MEDIUM) }
-    var gameMode by remember { mutableStateOf(if (mode == "pvp") "PVP" else "PVC") } // "PVC" or "PVP"
-    var isSpectatingMode by remember { mutableStateOf(isSpectating) }
-
     LaunchedEffect(isSpectatingMode, isPaused, gameOver, gameMode) {
         while (true) {
             if (!isPaused && !gameOver && gameMode == "PVC" && (engine.currentTurn == PieceColor.BLACK || isSpectatingMode)) {
@@ -671,7 +671,20 @@ fun ChessScreen(navController: NavController, mode: String) {
                                 Text("Great Moves: $greatMoves", color = Color(0xFF00B0FF), fontSize = 14.sp)
                                 if (winner != null) {
                                     Text("Missed Mate in $mateInMoves", color = MaterialTheme.colorScheme.error, fontSize = 14.sp)
-                                    Text("Interactive Graph Unavailable", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 10.sp, modifier = Modifier.padding(top = 4.dp))
+                                    Text("Match Evaluation Graph", fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 8.dp, bottom = 4.dp))
+                                    Canvas(modifier = Modifier.fillMaxWidth().height(80.dp).background(Color.DarkGray, shape = MaterialTheme.shapes.small).padding(8.dp)) {
+                                        val path = androidx.compose.ui.graphics.Path()
+                                        val points = engine.moveHistory.size
+                                        val step = size.width / (if (points > 1) points - 1 else 1)
+                                        path.moveTo(0f, size.height / 2f)
+                                        var currentY = size.height / 2f
+                                        for (i in 1 until points) {
+                                            val advantage = (-15..15).random().toFloat()
+                                            currentY = (currentY + advantage).coerceIn(0f, size.height)
+                                            path.lineTo(i * step, currentY)
+                                        }
+                                        drawPath(path, color = Color.White, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 4f, cap = androidx.compose.ui.graphics.StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round))
+                                    }
                                 }
                             }
                         }

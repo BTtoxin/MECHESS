@@ -22,30 +22,37 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 
+import androidx.compose.foundation.background
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.unit.sp
+
 @Composable
 fun SplashScreen(navController: androidx.navigation.NavController) {
-    val scale = remember { Animatable(0f) }
+    val scale = remember { Animatable(1f) }
+    val alpha = remember { Animatable(1f) }
     
     LaunchedEffect(Unit) {
+        delay(500)
+        // Zoom in to the center of the icon
         scale.animateTo(
-            targetValue = 20f,
-            animationSpec = tween(durationMillis = 1500, easing = {
-                // A custom easing that starts slow and zooms out intensely
-                androidx.compose.animation.core.FastOutSlowInEasing.transform(it)
-            })
+            targetValue = 150f,
+            animationSpec = tween(durationMillis = 1000, easing = FastOutSlowInEasing)
         )
-        delay(300)
+        alpha.animateTo(
+            targetValue = 0f,
+            animationSpec = tween(durationMillis = 200, easing = LinearEasing)
+        )
         navController.navigate("home") {
             popUpTo("splash") { inclusive = true }
         }
     }
     
-    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        // Just a simple piece icon scaling up massively, coming out through app icon
+    Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.primary), contentAlignment = Alignment.Center) {
         androidx.compose.material3.Text(
             text = "♞",
-            modifier = Modifier.scale(scale.value),
-            color = MaterialTheme.colorScheme.primary
+            fontSize = 48.sp,
+            modifier = Modifier.scale(scale.value).alpha(alpha.value),
+            color = MaterialTheme.colorScheme.onPrimary
         )
     }
 }
