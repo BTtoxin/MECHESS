@@ -183,7 +183,7 @@ fun ChessScreen(navController: NavController, isSpectating: Boolean) {
             )
         }
     ) { paddingValues ->
-        Column(modifier = Modifier.fillMaxSize().padding(paddingValues).padding(16.dp).background(MaterialTheme.colorScheme.background)) {
+        Column(modifier = Modifier.fillMaxSize().padding(paddingValues).padding(horizontal = 4.dp, vertical = 8.dp).background(MaterialTheme.colorScheme.background)) {
             // Opponent Info
             Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp),
@@ -298,6 +298,31 @@ fun ChessScreen(navController: NavController, isSpectating: Boolean) {
                         }
                     }
                     
+                    // Board Notation
+                    for (i in 0..7) {
+                        val boardC = if (isFlipped) 7 - i else i
+                        val fileChar = if (isFlipped) ('h' - i) else ('a' + i)
+                        val rankLabel = if (isFlipped) (i + 1).toString() else (8 - i).toString()
+                        
+                        // Rank Notation (left side)
+                        Text(
+                            text = rankLabel,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (i % 2 == 0) com.example.ui.theme.BoardLightSq else com.example.ui.theme.BoardDarkSq,
+                            modifier = Modifier.offset(x = 2.dp, y = (squareSize * i) + 2.dp)
+                        )
+                        
+                        // File Notation (bottom side)
+                        Text(
+                            text = fileChar.toString(),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (i % 2 == 1) com.example.ui.theme.BoardLightSq else com.example.ui.theme.BoardDarkSq,
+                            modifier = Modifier.offset(x = (squareSize * i) + squareSize - 10.dp, y = (squareSize * 7) + squareSize - 16.dp)
+                        )
+                    }
+
                     // Draw Pieces
                     for ((r, c, piece) in allPieces) {
                         key(piece.id) {
@@ -396,7 +421,14 @@ fun ChessScreen(navController: NavController, isSpectating: Boolean) {
                                 if (!isBlindfold) {
                                     Text(
                                         text = getPieceSymbol(piece.type, piece.color),
-                                        fontSize = 32.sp,
+                                        fontSize = 42.sp, // Made pieces a bit bigger for better 3D look
+                                        style = androidx.compose.ui.text.TextStyle(
+                                            shadow = androidx.compose.ui.graphics.Shadow(
+                                                color = Color.Black.copy(alpha = 0.6f),
+                                                offset = Offset(4f, 6f),
+                                                blurRadius = 8f
+                                            )
+                                        ),
                                         color = if (piece.color == PieceColor.WHITE) com.example.ui.theme.BoardPieceWhite else com.example.ui.theme.BoardPieceBlack
                                     )
                                 }
