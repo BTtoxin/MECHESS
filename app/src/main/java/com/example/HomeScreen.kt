@@ -1,16 +1,22 @@
 package com.example
 
 import androidx.compose.animation.core.*
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
 
 @Composable
 fun HomeScreen(navController: NavController) {
@@ -20,11 +26,20 @@ fun HomeScreen(navController: NavController) {
     var gamesPlayed by remember { mutableStateOf(sharedPreferences.getInt("gamesPlayed", 0)) }
     var wins by remember { mutableStateOf(sharedPreferences.getInt("wins", 0)) }
 
-    // Re-fetch when surface becomes visible, using a lifecycle effect could be better, but we can just use launched effect
+    val alphaAnim = remember { Animatable(0f) }
+    val slideAnim = remember { Animatable(50f) }
+    
     LaunchedEffect(Unit) {
         elo = sharedPreferences.getInt("elo", 1200)
         gamesPlayed = sharedPreferences.getInt("gamesPlayed", 0)
         wins = sharedPreferences.getInt("wins", 0)
+        
+        launch {
+            alphaAnim.animateTo(1f, tween(800, easing = LinearOutSlowInEasing))
+        }
+        launch {
+            slideAnim.animateTo(0f, tween(800, easing = LinearOutSlowInEasing))
+        }
     }
 
     val rank = when {
@@ -34,54 +49,89 @@ fun HomeScreen(navController: NavController) {
         else -> "Beginner"
     }
 
-    Box(modifier = Modifier.fillMaxSize()) {
-        FallingPiecesBackground()
-        
-        Column(
-            modifier = Modifier.fillMaxSize().padding(24.dp),
-            verticalArrangement = Arrangement.Center,
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f), verticalArrangement = Arrangement.Center) {
-            Text("MECHESS", fontSize = 48.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, letterSpacing = 2.sp)
-            Text("by Ashu Mehta", fontSize = 12.sp, modifier = Modifier.padding(bottom = 32.dp), color = MaterialTheme.colorScheme.onSurfaceVariant, letterSpacing = 4.sp)
-            
-            Surface(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                shape = MaterialTheme.shapes.large,
-                color = MaterialTheme.colorScheme.surface,
-                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
-            ) {
-                Column(modifier = Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("Your Rank: $rank", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text("Current Elo: $elo", color = MaterialTheme.colorScheme.onSurface)
-                    Text("Games Played: $gamesPlayed | Won: $wins", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
-                }
+    Scaffold(
+        bottomBar = {
+            NavigationBar {
+                NavigationBarItem(selected = true, onClick = {}, icon = { Icon(Icons.Default.Home, contentDescription = "Home") }, label = { Text("Home") })
+                NavigationBarItem(selected = false, onClick = {}, icon = { Icon(Icons.Default.Star, contentDescription = "Puzzles") }, label = { Text("Puzzles") })
+                NavigationBarItem(selected = false, onClick = {}, icon = { Icon(Icons.Default.Info, contentDescription = "Learn") }, label = { Text("Learn") })
+                NavigationBarItem(selected = false, onClick = { navController.navigate("game/spectate") }, icon = { Icon(Icons.Default.PlayArrow, contentDescription = "Watch") }, label = { Text("Watch") })
+                NavigationBarItem(selected = false, onClick = { navController.navigate("settings") }, icon = { Icon(Icons.Default.Menu, contentDescription = "More") }, label = { Text("More") })
             }
         }
-        
-        Column(verticalArrangement = Arrangement.spacedBy(16.dp), modifier = Modifier.fillMaxWidth()) {
-            if (com.example.chess.ChessGameManager.savedEngine != null && !com.example.chess.ChessGameManager.savedEngine!!.isCheckmate()) {
-                Button(onClick = { navController.navigate("game/resume") }, modifier = Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.medium, contentPadding = PaddingValues(16.dp), colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.tertiary, contentColor = MaterialTheme.colorScheme.onTertiary)) {
-                    Text("Resume Game", fontWeight = FontWeight.Bold)
+    ) { padding ->
+        Column(
+            modifier = Modifier.fillMaxSize().padding(padding).background(MaterialTheme.colorScheme.background).graphicsLayer {
+                alpha = alphaAnim.value
+                translationY = slideAnim.value
+            }
+        ) {
+            // User Header
+            Row(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text("Good evening, Ashu Mehta", fontWeight = FontWeight.Bold, fontSize = 20.sp, modifier = Modifier.weight(1f))
+            }
+
+            // Stats top row
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                StatCard("Blitz", "$elo", Modifier.weight(1f))
+                StatCard("Rapid", "1500", Modifier.weight(1f))
+                StatCard("Puzzle", "1200", Modifier.weight(1f))
+                StatCard("Streak", "$wins", Modifier.weight(1f))
+            }
+            
+            Spacer(modifier = Modifier.height(24.dp))
+            Text("Quick pairing", fontWeight = FontWeight.Bold, fontSize = 18.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+            
+            // Grid of buttons
+            val formats = listOf("1+0" to "Bullet", "2+1" to "Bullet", "3+0" to "Blitz", "3+2" to "Blitz", "5+0" to "Blitz", "5+3" to "Blitz", "10+0" to "Rapid", "10+5" to "Rapid", "15+10" to "Rapid")
+            androidx.compose.foundation.lazy.grid.LazyVerticalGrid(
+                columns = androidx.compose.foundation.lazy.grid.GridCells.Fixed(3),
+                contentPadding = PaddingValues(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.height(260.dp)
+            ) {
+                items(formats.size) { index ->
+                    val (time, type) = formats[index]
+                    Surface(
+                        color = MaterialTheme.colorScheme.surfaceVariant,
+                        shape = MaterialTheme.shapes.medium,
+                        onClick = { navController.navigate("game/pvc") }
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(16.dp)) {
+                            Text(time, fontWeight = FontWeight.Bold, fontSize = 20.sp)
+                            Text(type, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
                 }
             }
-            Button(onClick = { navController.navigate("game/pvp") }, modifier = Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.medium, contentPadding = PaddingValues(16.dp)) {
-                Text("Play Local Multiplayer", fontWeight = FontWeight.Bold)
-            }
-            Button(onClick = { navController.navigate("game/pvc") }, modifier = Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.medium, contentPadding = PaddingValues(16.dp), colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surface, contentColor = MaterialTheme.colorScheme.primary)) {
-                Text("Play vs AI (Beginner)", fontWeight = FontWeight.Bold)
-            }
-            Button(onClick = { navController.navigate("game/spectate") }, modifier = Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.medium, contentPadding = PaddingValues(16.dp), colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surface, contentColor = MaterialTheme.colorScheme.primary)) {
-                Text("Spectate Live Game (AI Demo)", fontWeight = FontWeight.Bold)
-            }
-            Button(onClick = { navController.navigate("settings") }, modifier = Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.medium, contentPadding = PaddingValues(16.dp), colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surface, contentColor = MaterialTheme.colorScheme.primary)) {
-                Text("Settings", fontWeight = FontWeight.Bold)
+
+            Spacer(modifier = Modifier.weight(1f))
+            Row(modifier = Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                 Button(onClick = { navController.navigate("game/pvp") }, modifier = Modifier.weight(1f).height(48.dp), shape = MaterialTheme.shapes.medium) {
+                     Text("Play Offline 2P")
+                 }
+                 if (com.example.chess.ChessGameManager.savedEngine != null && !com.example.chess.ChessGameManager.savedEngine!!.isCheckmate()) {
+                     Button(onClick = { navController.navigate("game/resume") }, modifier = Modifier.weight(1f).height(48.dp), shape = MaterialTheme.shapes.medium) {
+                         Text("Resume Match")
+                     }
+                 }
             }
         }
     }
-    } // closes Box
+}
+
+@Composable
+fun StatCard(label: String, value: String, modifier: Modifier = Modifier) {
+    Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = MaterialTheme.shapes.small, modifier = modifier) {
+        Column(modifier = Modifier.padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(value, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = MaterialTheme.colorScheme.primary)
+            Text(label, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
 }
 
 @Composable

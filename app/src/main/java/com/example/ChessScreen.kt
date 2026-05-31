@@ -271,26 +271,38 @@ fun ChessScreen(navController: NavController, mode: String) {
             )
         }
     ) { paddingValues ->
-        Column(modifier = Modifier.fillMaxSize().padding(paddingValues).padding(horizontal = 4.dp, vertical = 8.dp).background(MaterialTheme.colorScheme.background)) {
+        Column(modifier = Modifier.fillMaxSize().padding(paddingValues).padding(horizontal = 4.dp).background(androidx.compose.ui.graphics.Brush.verticalGradient(
+            colors = listOf(
+                MaterialTheme.colorScheme.surfaceVariant,
+                MaterialTheme.colorScheme.background,
+                MaterialTheme.colorScheme.surfaceVariant
+            )
+        ))) {
             // Opponent Info
-            Row(
+            Surface(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f),
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Box(modifier = Modifier.size(40.dp).background(MaterialTheme.colorScheme.secondary, shape = androidx.compose.foundation.shape.CircleShape), contentAlignment = Alignment.Center) {
-                        Text("AI", color = MaterialTheme.colorScheme.onSecondary, fontWeight = FontWeight.Bold)
-                    }
-                    Column {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text("Computer", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
-                            Text(difficulty.name, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSecondary, modifier = Modifier.background(MaterialTheme.colorScheme.secondary, shape = MaterialTheme.shapes.small).padding(horizontal = 4.dp, vertical = 2.dp))
+                Row(
+                    modifier = Modifier.padding(12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Box(modifier = Modifier.size(48.dp).background(androidx.compose.ui.graphics.Brush.linearGradient(listOf(Color.Red, Color.Magenta)), shape = androidx.compose.foundation.shape.CircleShape).border(2.dp, Color.White, androidx.compose.foundation.shape.CircleShape).graphicsLayer(shadowElevation = 8f), contentAlignment = Alignment.Center) {
+                            Text("AI", color = Color.White, fontWeight = FontWeight.ExtraBold, fontSize = 20.sp)
                         }
-                        Text("Stockfish 16.1", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Column {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text("Computer", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground, fontSize = 18.sp)
+                                Text(difficulty.name, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.background(Color.Red, shape = MaterialTheme.shapes.small).padding(horizontal = 4.dp, vertical = 2.dp))
+                            }
+                            Text("Stockfish 16.1 · ELO ~${if (difficulty == com.example.chess.Difficulty.HARD) 2800 else if (difficulty == com.example.chess.Difficulty.MEDIUM) 1600 else 800}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
                     }
+                    TimerComponent(blackTime)
                 }
-                TimerComponent(blackTime)
             }
 
             // Captured by White (Black pieces captured)
@@ -331,8 +343,15 @@ fun ChessScreen(navController: NavController, mode: String) {
                     }
                     
                     ElevatedCard(
-                        modifier = Modifier.weight(1f).fillMaxHeight().padding(4.dp).graphicsLayer(translationX = shakeOffset.value).border(BorderStroke(2.dp, MaterialTheme.colorScheme.primary), MaterialTheme.shapes.medium), 
-                        elevation = CardDefaults.elevatedCardElevation(8.dp)
+                        modifier = Modifier.weight(1f).fillMaxHeight().padding(4.dp).graphicsLayer(
+                            translationX = shakeOffset.value,
+                            shadowElevation = 24f,
+                            shape = androidx.compose.foundation.shape.RoundedCornerShape(6.dp),
+                            clip = true
+                        ).border(BorderStroke(8.dp, androidx.compose.ui.graphics.Brush.linearGradient(
+                            colors = listOf(Color(0xFF6B4226), Color(0xFF3b2110))
+                        )), androidx.compose.foundation.shape.RoundedCornerShape(6.dp)), 
+                        elevation = CardDefaults.elevatedCardElevation(0.dp)
                     ) {
                 val currentPaused by rememberUpdatedState(isPaused)
                 val currentGameOver by rememberUpdatedState(gameOver)
@@ -563,13 +582,19 @@ fun ChessScreen(navController: NavController, mode: String) {
                                 if (!isBlindfold) {
                                     Text(
                                         text = getPieceSymbol(piece.type, piece.color),
-                                        fontSize = 48.sp, // Made pieces a bit bigger for better 3D look
+                                        fontSize = 58.sp, // Made pieces massive for better 3D look
                                         style = androidx.compose.ui.text.TextStyle(
                                             shadow = androidx.compose.ui.graphics.Shadow(
-                                                color = Color.Black.copy(alpha = 0.8f),
-                                                offset = Offset(3f, 8f),
-                                                blurRadius = 4f
+                                                color = Color.Black.copy(alpha = 0.5f),
+                                                offset = Offset(-2f, 10f),
+                                                blurRadius = 6f
                                             )
+                                        ),
+                                        modifier = Modifier.graphicsLayer(
+                                            shadowElevation = if (isDragging) 12f else 0f,
+                                            scaleX = if (isDragging) 1.2f else 1f,
+                                            scaleY = if (isDragging) 1.2f else 1f,
+                                            cameraDistance = 8f
                                         ),
                                         color = if (piece.color == PieceColor.WHITE) com.example.ui.theme.BoardPieceWhite else com.example.ui.theme.BoardPieceBlack
                                     )
@@ -643,25 +668,31 @@ fun ChessScreen(navController: NavController, mode: String) {
             }
 
             // Player Bottom Bar
-            Row(
+            Surface(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 12.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f),
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Box(modifier = Modifier.size(40.dp).background(MaterialTheme.colorScheme.primary, shape = androidx.compose.foundation.shape.CircleShape), contentAlignment = Alignment.Center) {
-                        Text("AM", color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Bold)
-                    }
-                    Column {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text("Ashu Mehta", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
-                            Text("PRO", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.background(MaterialTheme.colorScheme.primary, shape = MaterialTheme.shapes.small).padding(horizontal = 4.dp, vertical = 2.dp))
+                Row(
+                    modifier = Modifier.padding(12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Box(modifier = Modifier.size(48.dp).background(androidx.compose.ui.graphics.Brush.linearGradient(listOf(Color.Blue, Color.Cyan)), shape = androidx.compose.foundation.shape.CircleShape).border(2.dp, Color.White, androidx.compose.foundation.shape.CircleShape).graphicsLayer(shadowElevation = 8f), contentAlignment = Alignment.Center) {
+                            Text("AM", color = Color.White, fontWeight = FontWeight.ExtraBold, fontSize = 20.sp)
                         }
-                        Text("Ranked: Gold II • Elo: 1842", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Column {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text("Ashu Mehta", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground, fontSize = 18.sp)
+                                Text("PRO", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.background(Color.Blue, shape = MaterialTheme.shapes.small).padding(horizontal = 4.dp, vertical = 2.dp))
+                            }
+                            Text("Ranked: Gold II • Elo: 1842", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
                     }
+                    // Use TimerComponent
+                    TimerComponent(if (engine.currentTurn == PieceColor.WHITE) whiteTime else blackTime)
                 }
-                // Use TimerComponent
-                TimerComponent(if (engine.currentTurn == PieceColor.WHITE) whiteTime else blackTime)
             }
         } // End weight(1f) column
 
@@ -728,10 +759,15 @@ fun ChessScreen(navController: NavController, mode: String) {
                                 Text("Great Moves: $greatMoves", color = Color(0xFF00B0FF), fontSize = 14.sp)
                                 if (winner != null) {
                                     Text("Missed Mate in $mateInMoves", color = MaterialTheme.colorScheme.error, fontSize = 14.sp)
-                                    Text("Match Evaluation Graph", fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 8.dp, bottom = 4.dp))
-                                    var graphScrubPos by remember { mutableStateOf(-1f) }
-                                    Canvas(
-                                        modifier = Modifier.fillMaxWidth().height(80.dp).background(Color.DarkGray, shape = MaterialTheme.shapes.small).padding(8.dp)
+                                }
+                                Text("Match Evaluation Graph", fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 8.dp, bottom = 4.dp))
+                                var graphScrubPos by remember { mutableStateOf(-1f) }
+                                Canvas(
+                                        modifier = Modifier.fillMaxWidth().height(80.dp)
+                                            .background(
+                                                androidx.compose.ui.graphics.Brush.verticalGradient(listOf(Color(0xFF2C2C2C), Color(0xFF1A1A1A))), 
+                                                shape = MaterialTheme.shapes.small
+                                            ).padding(8.dp)
                                             .pointerInput(Unit) {
                                                 detectDragGestures { change, dragAmount ->
                                                     graphScrubPos = change.position.x
@@ -743,23 +779,47 @@ fun ChessScreen(navController: NavController, mode: String) {
                                         val step = size.width / (if (points > 1) points - 1 else 1)
                                         path.moveTo(0f, size.height / 2f)
                                         var currentY = size.height / 2f
+                                        
+                                        val pointList = mutableListOf<Offset>()
+                                        pointList.add(Offset(0f, currentY))
+                                        
                                         for (i in 1 until points) {
                                             val advantage = (-15..15).random().toFloat()
                                             currentY = (currentY + advantage).coerceIn(0f, size.height)
-                                            path.lineTo(i * step, currentY)
+                                            val pt = Offset(i * step, currentY)
+                                            path.lineTo(pt.x, pt.y)
+                                            pointList.add(pt)
                                         }
-                                        drawPath(path, color = Color.White, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 4f, cap = androidx.compose.ui.graphics.StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round))
+                                        
+                                        // Draw gradient fill below graph
+                                        if (pointList.size > 1) {
+                                            val fillPath = androidx.compose.ui.graphics.Path()
+                                            fillPath.moveTo(0f, size.height)
+                                            fillPath.lineTo(0f, pointList.first().y)
+                                            pointList.forEach { fillPath.lineTo(it.x, it.y) }
+                                            fillPath.lineTo(size.width, size.height)
+                                            fillPath.close()
+                                            drawPath(fillPath, brush = androidx.compose.ui.graphics.Brush.verticalGradient(
+                                                colors = listOf(Color.White.copy(alpha=0.4f), Color.Transparent)
+                                            ))
+                                        }
+                                        
+                                        drawPath(path, color = Color.White, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 6f, cap = androidx.compose.ui.graphics.StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round))
                                         
                                         if (graphScrubPos >= 0f) {
                                             drawLine(
                                                 color = Color.Yellow,
                                                 start = Offset(graphScrubPos.coerceIn(0f, size.width), 0f),
                                                 end = Offset(graphScrubPos.coerceIn(0f, size.width), size.height),
-                                                strokeWidth = 2f
+                                                strokeWidth = 4f
                                             )
+                                           // Draw little point ring at scrub intersection
+                                           val scrubIndex = (graphScrubPos / step).toInt().coerceIn(0, pointList.lastIndex)
+                                           val intersectY = pointList[scrubIndex].y
+                                           drawCircle(color = Color.Yellow, radius = 6f, center = Offset(graphScrubPos.coerceIn(0f, size.width), intersectY))
+                                           drawCircle(color = Color.Black, radius = 3f, center = Offset(graphScrubPos.coerceIn(0f, size.width), intersectY))
                                         }
                                     }
-                                }
                             }
                         }
                     }
@@ -837,8 +897,32 @@ fun ChessScreen(navController: NavController, mode: String) {
 
 @Composable
 fun TimerComponent(seconds: Int) {
-    Box(modifier = Modifier.background(MaterialTheme.colorScheme.primary, shape = MaterialTheme.shapes.small).padding(horizontal = 16.dp, vertical = 6.dp)) {
-        Text(formatTime(seconds), fontSize = 20.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimary)
+    val isLowTime = seconds < 30
+    val pulse by androidx.compose.animation.core.rememberInfiniteTransition().animateFloat(
+        initialValue = 1f, targetValue = 0.5f,
+        animationSpec = androidx.compose.animation.core.infiniteRepeatable(tween(500, easing = androidx.compose.animation.core.LinearEasing), RepeatMode.Reverse)
+    )
+
+    Box(
+        modifier = Modifier
+            .background(
+                brush = androidx.compose.ui.graphics.Brush.linearGradient(
+                    if (isLowTime) listOf(Color.Red.copy(alpha = pulse), Color.DarkGray)
+                    else listOf(MaterialTheme.colorScheme.primaryContainer, MaterialTheme.colorScheme.primary)
+                ),
+                shape = androidx.compose.foundation.shape.CircleShape
+            )
+            .border(2.dp, if (isLowTime) Color.Red else MaterialTheme.colorScheme.outlineVariant, androidx.compose.foundation.shape.CircleShape)
+            .padding(horizontal = 20.dp, vertical = 8.dp)
+            .graphicsLayer(shadowElevation = 8f, shape = androidx.compose.foundation.shape.CircleShape, clip = false)
+    ) {
+        Text(
+            formatTime(seconds), 
+            fontSize = 24.sp, 
+            fontWeight = FontWeight.ExtraBold, 
+            color = if (isLowTime) Color.White else MaterialTheme.colorScheme.onPrimaryContainer,
+            style = androidx.compose.ui.text.TextStyle(shadow = androidx.compose.ui.graphics.Shadow(color = Color.Black, blurRadius = 2f))
+        )
     }
 }
 
@@ -911,14 +995,18 @@ fun colChar(col: Int): Char {
 fun ConfettiView() {
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val width = maxWidth
-        for (i in 0..50) {
+        for (i in 0..100) {
             val randomX = remember { (0..100).random() / 100f }
-            val animDuration = remember { (2000..4000).random() }
-            val delayStart = remember { (0..1000).random() }
+            val animDuration = remember { (2000..5000).random() }
+            val delayStart = remember { (0..2000).random() }
+            val shapeType = remember { (0..2).random() } // 0=Star, 1=Circle, 2=Square
+            val colors = listOf(Color.Red, Color.Green, Color.Blue, Color.Yellow, Color.Magenta, Color.Cyan, Color.White)
+            val color = remember { colors.random() }
+            
             val infiniteTransition = androidx.compose.animation.core.rememberInfiniteTransition()
             val yPos by infiniteTransition.animateFloat(
                 initialValue = -100f,
-                targetValue = 1000f,
+                targetValue = 1200f,
                 animationSpec = androidx.compose.animation.core.infiniteRepeatable(
                     animation = androidx.compose.animation.core.tween(durationMillis = animDuration, easing = androidx.compose.animation.core.LinearEasing),
                     repeatMode = androidx.compose.animation.core.RepeatMode.Restart,
@@ -929,13 +1017,22 @@ fun ConfettiView() {
                 initialValue = 0f,
                 targetValue = 360f,
                 animationSpec = androidx.compose.animation.core.infiniteRepeatable(
-                    animation = androidx.compose.animation.core.tween(durationMillis = animDuration / 2, easing = androidx.compose.animation.core.LinearEasing),
+                    animation = androidx.compose.animation.core.tween(durationMillis = animDuration, easing = androidx.compose.animation.core.LinearEasing),
                     repeatMode = androidx.compose.animation.core.RepeatMode.Restart
                 )
             )
-            val colors = listOf(Color.Red, Color.Green, Color.Blue, Color.Yellow, Color.Magenta, Color.Cyan)
-            val color = remember { colors.random() }
-            Text("★", color = color, fontSize = 24.sp, modifier = Modifier.offset(x = width * randomX, y = yPos.dp).graphicsLayer(rotationZ = rotation))
+            
+            Box(modifier = Modifier
+                .offset(x = width * randomX, y = yPos.dp)
+                .graphicsLayer(rotationZ = rotation)
+                .size((12..24).random().dp)
+            ) {
+                when(shapeType) {
+                    0 -> Text("★", color = color, fontSize = 24.sp)
+                    1 -> Box(modifier = Modifier.fillMaxSize().background(color, androidx.compose.foundation.shape.CircleShape))
+                    2 -> Box(modifier = Modifier.fillMaxSize().background(color, androidx.compose.foundation.shape.RoundedCornerShape(2.dp)))
+                }
+            }
         }
     }
 }
