@@ -77,6 +77,7 @@ fun ChessScreen(navController: NavController, isSpectating: Boolean) {
     var soundEnabled by remember { mutableStateOf(true) }
     var isBlindfold by remember { mutableStateOf(false) } // Add Blindfold Mode
     val boardAlpha = remember { androidx.compose.animation.core.Animatable(1f) }
+    val shakeOffset = remember { androidx.compose.animation.core.Animatable(0f) }
     
     val lastMove = engine.moveHistory.lastOrNull()
     val isCheck = remember(updateState) { engine.isKingInCheck(engine.currentTurn) }
@@ -231,7 +232,7 @@ fun ChessScreen(navController: NavController, isSpectating: Boolean) {
                 }
 
                 ElevatedCard(
-                    modifier = Modifier.weight(1f).fillMaxHeight().border(BorderStroke(2.dp, MaterialTheme.colorScheme.primary), MaterialTheme.shapes.medium), 
+                    modifier = Modifier.weight(1f).fillMaxHeight().padding(4.dp).graphicsLayer(translationX = shakeOffset.value).border(BorderStroke(2.dp, MaterialTheme.colorScheme.primary), MaterialTheme.shapes.medium), 
                     elevation = CardDefaults.elevatedCardElevation(8.dp)
                 ) {
                 val currentPaused by rememberUpdatedState(isPaused)
@@ -336,22 +337,29 @@ fun ChessScreen(navController: NavController, isSpectating: Boolean) {
                                             onDragEnd = {
                                                 if (isDragging) {
                                                     isDragging = false
-                                                    val dropXPx = (c * squareSize.toPx()) + dragOffset.x + (squareSize.toPx() / 2)
-                                                    val dropYPx = (r * squareSize.toPx()) + dragOffset.y + (squareSize.toPx() / 2)
-                                                    var dropC = (dropXPx / squareSize.toPx()).toInt()
-                                                    var dropR = (dropYPx / squareSize.toPx()).toInt()
+                                                    // Simplest way: use the raw drop position relative to the board
+                                                    val dropX = dragOffset.x + (c * squareSize.toPx())
+                                                    val dropY = dragOffset.y + (r * squareSize.toPx())
+                                                    // Adding half square size to find the center of the dropped piece
+                                                    val targetC = ((dropX + (squareSize.toPx() / 2)) / squareSize.toPx()).toInt()
+                                                    val targetR = ((dropY + (squareSize.toPx() / 2)) / squareSize.toPx()).toInt()
                                                     
-                                                    if (isFlipped) {
-                                                        dropC = 7 - dropC
-                                                        dropR = 7 - dropR
-                                                    }
+                                                    val finalC = if (isFlipped) 7 - targetC else targetC
+                                                    val finalR = if (isFlipped) 7 - targetR else targetR
                                                     
-                                                    if (dropR in 0..7 && dropC in 0..7 && selectedPos != null) {
-                                                        if (engine.move(selectedPos!!, Position(dropR, dropC))) {
+                                                    if (finalR in 0..7 && finalC in 0..7 && selectedPos != null) {
+                                                        if (engine.move(selectedPos!!, Position(finalR, finalC))) {
                                                             if (soundEnabled) toneGenerator.startTone(android.media.ToneGenerator.TONE_PROP_BEEP, 50)
                                                             if (engine.isCheckmate()) {
                                                                 gameOver = true
                                                                 winner = engine.currentTurn
+                                                                scope.launch {
+                                                                    repeat(5) { 
+                                                                        shakeOffset.animateTo(10f, androidx.compose.animation.core.tween(50))
+                                                                        shakeOffset.animateTo(-10f, androidx.compose.animation.core.tween(50))
+                                                                    }
+                                                                    shakeOffset.animateTo(0f, androidx.compose.animation.core.tween(50))
+                                                                }
                                                             }
                                                             selectedPos = null
                                                             updateState++

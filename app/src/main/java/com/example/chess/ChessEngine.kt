@@ -223,9 +223,10 @@ class ChessEngine {
         }
     }
 
-    private fun getPieceValue(piece: Piece?): Int {
+    private fun getPieceValue(piece: Piece?, row: Int, col: Int): Int {
         if (piece == null) return 0
-        val v = when (piece.type) {
+        
+        val baseValue = when (piece.type) {
             PieceType.PAWN -> 10
             PieceType.KNIGHT -> 30
             PieceType.BISHOP -> 30
@@ -233,6 +234,18 @@ class ChessEngine {
             PieceType.QUEEN -> 90
             PieceType.KING -> 900
         }
+        
+        // Simple Positioning Tables (PST)
+        val posValue = when (piece.type) {
+            PieceType.PAWN -> if (piece.color == PieceColor.WHITE) (6 - row) else (row - 1)
+            PieceType.KNIGHT -> 0 
+            PieceType.BISHOP -> 0
+            PieceType.ROOK -> 0
+            PieceType.QUEEN -> 0
+            PieceType.KING -> 0
+        }
+        
+        val v = baseValue + posValue
         return if (piece.color == PieceColor.WHITE) v else -v
     }
     
@@ -240,7 +253,7 @@ class ChessEngine {
         var score = 0
         for (r in 0..7) {
             for (c in 0..7) {
-                score += getPieceValue(board[r][c])
+                score += getPieceValue(board[r][c], r, c)
             }
         }
         return score
