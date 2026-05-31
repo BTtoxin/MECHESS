@@ -5,7 +5,9 @@ import kotlin.math.abs
 enum class PieceColor { WHITE, BLACK }
 enum class PieceType { PAWN, KNIGHT, BISHOP, ROOK, QUEEN, KING }
 
-data class Piece(val type: PieceType, val color: PieceColor)
+enum class Difficulty { EASY, MEDIUM, HARD }
+
+data class Piece(val type: PieceType, val color: PieceColor, val id: java.util.UUID = java.util.UUID.randomUUID())
 
 data class Position(val row: Int, val col: Int)
 
@@ -191,7 +193,7 @@ class ChessEngine {
         setupBoard()
     }
 
-    fun getRandomMove(): Move? {
+    fun getAIMove(difficulty: com.example.chess.Difficulty): Move? {
         val possibleMoves = mutableListOf<Move>()
         for (r in 0..7) {
             for (c in 0..7) {
@@ -207,6 +209,55 @@ class ChessEngine {
                 }
             }
         }
-        return possibleMoves.randomOrNull()
+        if (possibleMoves.isEmpty()) return null
+
+        return when (difficulty) {
+            com.example.chess.Difficulty.EASY -> possibleMoves.randomOrNull()
+            com.example.chess.Difficulty.MEDIUM -> {
+                val captures = possibleMoves.filter { it.pieceCaptured != null }
+                if (captures.isNotEmpty()) captures.random() else possibleMoves.random()
+            }
+            com.example.chess.Difficulty.HARD -> {
+                possibleMoves.maxByOrNull { evaluateExpectedState(it) } ?: possibleMoves.random()
+            }
+        }
+    }
+
+    private fun getPieceValue(piece: Piece?): Int {
+        if (piece == null) return 0
+        val v = when (piece.type) {
+            PieceType.PAWN -> 10
+            PieceType.KNIGHT -> 30
+            PieceType.BISHOP -> 30
+            PieceType.ROOK -> 50
+            PieceType.QUEEN -> 90
+            PieceType.KING -> 900
+        }
+        return if (piece.color == PieceColor.WHITE) v else -v
+    }
+    
+    fun evaluateBoard(): Int {
+        var score = 0
+        for (r in 0..7) {
+            for (c in 0..7) {
+                score += getPieceValue(board[r][c])
+            }
+        }
+        return score
+    }
+
+    private fun evaluateExpectedState(move: Move): Int {
+        val p = board[move.from.row][move.from.col]
+        val captured = board[move.to.row][move.to.col]
+        board[move.to.row][move.to.col] = p
+        board[move.from.row][move.from.col] = null
+
+        val score = evaluateBoard()
+
+        board[move.from.row][move.from.col] = p
+        board[move.to.row][move.to.col] = captured
+
+        val sign = if (currentTurn == PieceColor.WHITE) 1 else -1
+        return score * sign
     }
 }
