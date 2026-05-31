@@ -183,4 +183,30 @@ class ChessEngine {
         board[lastMove.to.row][lastMove.to.col] = lastMove.pieceCaptured
         currentTurn = if (currentTurn == PieceColor.WHITE) PieceColor.BLACK else PieceColor.WHITE
     }
+
+    fun reset() {
+        board = Array(8) { Array<Piece?>(8) { null } }
+        currentTurn = PieceColor.WHITE
+        moveHistory.clear()
+        setupBoard()
+    }
+
+    fun getRandomMove(): Move? {
+        val possibleMoves = mutableListOf<Move>()
+        for (r in 0..7) {
+            for (c in 0..7) {
+                val p = board[r][c]
+                if (p != null && p.color == currentTurn) {
+                    for (tr in 0..7) {
+                        for (tc in 0..7) {
+                            if (isValidMove(Position(r, c), Position(tr, tc))) {
+                                possibleMoves.add(Move(Position(r, c), Position(tr, tc), p, pieceAt(tr, tc)))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return possibleMoves.randomOrNull()
+    }
 }

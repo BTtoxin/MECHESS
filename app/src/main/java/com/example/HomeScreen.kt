@@ -45,6 +45,9 @@ fun HomeScreen(navController: NavController) {
             Button(onClick = { navController.navigate("game") }, modifier = Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.medium, contentPadding = PaddingValues(16.dp), colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surface, contentColor = MaterialTheme.colorScheme.primary)) {
                 Text("Play vs AI (Beginner)", fontWeight = FontWeight.Bold)
             }
+            Button(onClick = { navController.navigate("game/true") }, modifier = Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.medium, contentPadding = PaddingValues(16.dp), colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surface, contentColor = MaterialTheme.colorScheme.primary)) {
+                Text("Spectate Live Game (AI Demo)", fontWeight = FontWeight.Bold)
+            }
             Button(onClick = { navController.navigate("settings") }, modifier = Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.medium, contentPadding = PaddingValues(16.dp), colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surface, contentColor = MaterialTheme.colorScheme.primary)) {
                 Text("Settings", fontWeight = FontWeight.Bold)
             }

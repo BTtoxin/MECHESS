@@ -23,13 +23,32 @@ private val DarkColorScheme = darkColorScheme(
     outlineVariant = OutlineDark
 )
 
+private val LightColorScheme = lightColorScheme(
+    primary = PrimaryLight,
+    onPrimary = OnPrimaryLight,
+    background = BgLight,
+    onBackground = TextDark,
+    surface = SurfaceLight,
+    onSurface = TextDark,
+    surfaceVariant = SurfaceLight,
+    onSurfaceVariant = TextMuted,
+    outline = OutlineLight,
+    outlineVariant = OutlineLight
+)
+
 @Composable
 fun MyApplicationTheme(
-    darkTheme: Boolean = true,
-    dynamicColor: Boolean = false,
+    darkTheme: Boolean = isSystemInDarkTheme(),
+    dynamicColor: Boolean = true,
     content: @Composable () -> Unit,
 ) {
-    val colorScheme = DarkColorScheme
-
+    val colorScheme = when {
+        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
+            val context = LocalContext.current
+            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+        }
+        darkTheme -> DarkColorScheme
+        else -> LightColorScheme
+    }
     MaterialTheme(colorScheme = colorScheme, typography = Typography, content = content)
 }

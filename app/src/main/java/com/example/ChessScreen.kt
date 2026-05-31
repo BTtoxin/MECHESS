@@ -1,23 +1,31 @@
 package com.example
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -30,149 +38,184 @@ import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ChessScreen(navController: NavController) {
+fun ChessScreen(navController: NavController, isSpectating: Boolean) {
     val engine = remember { ChessEngine() }
     var selectedPos by remember { mutableStateOf<Position?>(null) }
-    var updateCounter by remember { mutableStateOf(0) }
+    var updateState by remember { mutableStateOf(0) }
     var isPaused by remember { mutableStateOf(false) }
     var whiteTime by remember { mutableStateOf(600) } // 10 minutes
     var blackTime by remember { mutableStateOf(600) }
     var gameOver by remember { mutableStateOf(false) }
     var winner by remember { mutableStateOf<PieceColor?>(null) }
+    var isAnalyzing by remember { mutableStateOf(false) }
+    val boardAlpha = remember { androidx.compose.animation.core.Animatable(1f) }
+
+    // Checkmate Animation
+    LaunchedEffect(gameOver) {
+        if (gameOver) {
+            boardAlpha.animateTo(0f, animationSpec = androidx.compose.animation.core.tween(1000))
+        }
+    }
     
-    // Timer Coroutine
-    LaunchedEffect(engine.currentTurn, isPaused, gameOver) {
+    LaunchedEffect(isSpectating, isPaused, gameOver) {
+        while (isSpectating && !isPaused && !gameOver) {
+            delay(5000L)
+            engine.getRandomMove()?.let { move ->
+                engine.move(move.from, move.to)
+                updateState++
+            }
+        }
+    }
+    LaunchedEffect(isPaused, gameOver) {
         if (!isPaused && !gameOver) {
             while (true) {
                 delay(1000L)
                 if (engine.currentTurn == PieceColor.WHITE) {
                     whiteTime--
                     if (whiteTime <= 0) { gameOver = true; winner = PieceColor.BLACK }
-                } else {
+                } else if (engine.currentTurn == PieceColor.BLACK) {
                     blackTime--
                     if (blackTime <= 0) { gameOver = true; winner = PieceColor.WHITE }
                 }
             }
         }
     }
+    
+    val capturedPieces = engine.moveHistory.mapNotNull { it.pieceCaptured }
+    val whiteCaptured = capturedPieces.filter { it.color == PieceColor.BLACK }
+    val blackCaptured = capturedPieces.filter { it.color == PieceColor.WHITE }
 
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        // App Header
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column {
-                Text("MECHESS", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-                Text("by Ashu Mehta", fontSize = 10.sp, letterSpacing = 2.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                IconButton(onClick = { /* Sound */ }, modifier = Modifier.background(MaterialTheme.colorScheme.surface, shape = androidx.compose.foundation.shape.CircleShape).size(40.dp)) {
-                    Icon(androidx.compose.material.icons.Icons.Default.PlayArrow, contentDescription = "Sound", tint = MaterialTheme.colorScheme.onSurface)
-                }
-                IconButton(onClick = { navController.navigate("settings") }, modifier = Modifier.background(MaterialTheme.colorScheme.surface, shape = androidx.compose.foundation.shape.CircleShape).size(40.dp)) {
-                    Icon(androidx.compose.material.icons.Icons.Default.Close /* using Close instead of unimported Settings */, contentDescription = "Settings", tint = MaterialTheme.colorScheme.onSurface)
-                }
-            }
-        }
-        
-        Column(modifier = Modifier.weight(1f).padding(horizontal = 8.dp)) {
-            val dummy = updateCounter
-            // Opponent Top Bar
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Box(modifier = Modifier.size(40.dp).background(Color.Red, shape = androidx.compose.foundation.shape.CircleShape)) // Avatar Placeholder
-                    Column {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text("GrandMaster_AI", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
-                            Text("LVL 8", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.background(MaterialTheme.colorScheme.outline, shape = MaterialTheme.shapes.small).padding(horizontal = 4.dp, vertical = 2.dp))
-                        }
-                        Text("Rating: 2450 • Blitz", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                }
-                Box(modifier = Modifier.background(MaterialTheme.colorScheme.surface, shape = MaterialTheme.shapes.small).padding(horizontal = 12.dp, vertical = 4.dp)) {
-                    Text(formatTime(blackTime), fontSize = 18.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
-                }
-            }
-
-            // Board Container
-            Row(modifier = Modifier.fillMaxWidth().weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                // Eval Bar
-                Box(modifier = Modifier.width(8.dp).fillMaxHeight(0.8f).background(MaterialTheme.colorScheme.outline, shape = androidx.compose.foundation.shape.CircleShape), contentAlignment = Alignment.BottomCenter) {
-                    Box(modifier = Modifier.fillMaxWidth().fillMaxHeight(0.55f).background(Color.White, shape = androidx.compose.foundation.shape.CircleShape))
-                }
-
-                BoxWithConstraints(modifier = Modifier.weight(1f).aspectRatio(1f).background(MaterialTheme.colorScheme.outline).padding(2.dp)) {
-            val squareSize = maxWidth / 8
-            
-            // Draw Board Background
-            Canvas(modifier = Modifier.fillMaxSize()) {
-                val lightColor = com.example.ui.theme.BoardLightSq
-                val darkColor = com.example.ui.theme.BoardDarkSq
-                
-                for (r in 0..7) {
-                    for (c in 0..7) {
-                        val color = if ((r + c) % 2 == 0) lightColor else darkColor
-                        val isSelected = selectedPos?.row == r && selectedPos?.col == c
-                        drawRect(
-                            color = if (isSelected) Color(0x88FFFF00) else color,
-                            topLeft = Offset(c * size.width / 8, r * size.height / 8),
-                            size = Size(size.width / 8, size.height / 8)
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { 
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Icon(
+                            imageVector = Icons.Default.AccountCircle,
+                            contentDescription = "Logo",
+                            modifier = Modifier.size(32.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary),
+                            tint = MaterialTheme.colorScheme.onPrimary
                         )
+                        Column {
+                            Text("MeChess", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                            Text("Professional", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                },
+                navigationIcon = {
+                    IconButton(onClick = { navController.popBackStack() }) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                },
+                actions = {
+                    IconButton(onClick = { navController.navigate("settings") }) {
+                        Icon(Icons.Default.Settings, contentDescription = "Settings")
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+            )
+        }
+    ) { paddingValues ->
+        Column(modifier = Modifier.fillMaxSize().padding(paddingValues).padding(16.dp).background(MaterialTheme.colorScheme.background)) {
+            // Captured by White (Black pieces captured)
+            Row(modifier = Modifier.fillMaxWidth().height(32.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text("Captured: ", style = MaterialTheme.typography.labelSmall)
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                    items(whiteCaptured) { piece ->
+                        Text(getPieceSymbol(piece.type, piece.color), fontSize = 16.sp)
                     }
                 }
             }
-            
-            // Draw Pieces and Handle Clicks
-            for (r in 0..7) {
-                for (c in 0..7) {
-                    val piece = engine.pieceAt(r, c)
-                    Box(modifier = Modifier
-                        .offset(x = squareSize * c, y = squareSize * r)
-                        .size(squareSize)
-                        .clickable(enabled = !isPaused && !gameOver) {
-                            if (selectedPos != null) {
-                                if (engine.move(selectedPos!!, Position(r, c))) {
-                                    if (engine.isCheckmate()) {
-                                        gameOver = true
-                                        winner = engine.currentTurn
+
+            // Board Card
+            ElevatedCard(modifier = Modifier.fillMaxWidth().aspectRatio(1f).padding(4.dp), elevation = CardDefaults.elevatedCardElevation(8.dp)) {
+                val currentPaused by rememberUpdatedState(isPaused)
+                val currentGameOver by rememberUpdatedState(gameOver)
+                val currentSpectating by rememberUpdatedState(isSpectating)
+
+                BoxWithConstraints(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.outline).padding(2.dp).graphicsLayer(alpha = boardAlpha.value).pointerInput(Unit) {
+                    detectTapGestures { offset ->
+                        if (!currentPaused && !currentGameOver && !currentSpectating) {
+                            val squareSizeX = size.width / 8
+                            val squareSizeY = size.height / 8
+                            val c = (offset.x / squareSizeX).toInt()
+                            val r = (offset.y / squareSizeY).toInt()
+                            
+                            if (r in 0..7 && c in 0..7) {
+                                val piece = engine.pieceAt(r, c)
+                                if (selectedPos != null) {
+                                    if (engine.move(selectedPos!!, Position(r, c))) {
+                                        if (engine.isCheckmate()) {
+                                            gameOver = true
+                                            winner = engine.currentTurn
+                                        }
+                                        selectedPos = null
+                                        updateState++
+                                    } else {
+                                        if (piece?.color == engine.currentTurn) {
+                                            selectedPos = Position(r, c)
+                                        } else {
+                                            selectedPos = null
+                                        }
                                     }
-                                    selectedPos = null
-                                    updateCounter++ // trigger recomposition
                                 } else {
                                     if (piece?.color == engine.currentTurn) {
                                         selectedPos = Position(r, c)
-                                    } else {
-                                        selectedPos = null
                                     }
                                 }
-                            } else {
-                                if (piece?.color == engine.currentTurn) {
-                                    selectedPos = Position(r, c)
-                                }
                             }
-                        },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        if (piece != null) {
-                            Text(
-                                text = getPieceSymbol(piece.type, piece.color),
-                                fontSize = 32.sp,
-                                color = if (piece.color == PieceColor.WHITE) com.example.ui.theme.BoardPieceWhite else com.example.ui.theme.BoardPieceBlack
-                            )
                         }
                     }
+                }) {
+                    val squareSize = maxWidth / 8
+                    
+                    // Draw Board Background
+                    Canvas(modifier = Modifier.fillMaxSize()) {
+                        val lightColor = com.example.ui.theme.BoardLightSq
+                        val darkColor = com.example.ui.theme.BoardDarkSq
+                        
+                        for (r in 0..7) {
+                            for (c in 0..7) {
+                                val color = if ((r + c) % 2 == 0) lightColor else darkColor
+                                val isSelected = selectedPos?.row == r && selectedPos?.col == c
+                                drawRect(
+                                    color = if (isSelected) Color(0x88FFFF00) else color,
+                                    topLeft = Offset(c * size.width / 8, r * size.height / 8),
+                                    size = Size(size.width / 8, size.height / 8)
+                                )
+                            }
+                        }
+                    }
+                    
+                    // Draw Pieces
+                    for (r in 0..7) {
+                        for (c in 0..7) {
+                            val piece = engine.pieceAt(r, c)
+                            if (piece != null) {
+                                Box(modifier = Modifier.offset(x = squareSize * c, y = squareSize * r).size(squareSize), contentAlignment = Alignment.Center) {
+                                    Text(
+                                        text = getPieceSymbol(piece.type, piece.color),
+                                        fontSize = 32.sp,
+                                        color = if (piece.color == PieceColor.WHITE) com.example.ui.theme.BoardPieceWhite else com.example.ui.theme.BoardPieceBlack
+                                    )
+                                }
+                            }
+                        }
+                    }
+                } // closes BoxWithConstraints
+            } // closes ElevatedCard
+
+            // Captured by Black (White pieces captured)
+            Row(modifier = Modifier.fillMaxWidth().height(32.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text("Captured: ", style = MaterialTheme.typography.labelSmall)
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                    items(blackCaptured) { piece ->
+                        Text(getPieceSymbol(piece.type, piece.color), fontSize = 16.sp)
+                    }
                 }
-            } // closes for r
-        } // closes BoxWithConstraints
-    } // closes Row (Board Container)
+            }                
             
-    // Action Controls
+            // Action Controls
             Spacer(modifier = Modifier.height(8.dp))
             // Move History
             Row(modifier = Modifier.fillMaxWidth().height(40.dp).background(MaterialTheme.colorScheme.surface, shape = MaterialTheme.shapes.medium).padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -192,7 +235,7 @@ fun ChessScreen(navController: NavController) {
             Spacer(modifier = Modifier.height(8.dp))
             // Game Buttons
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                Button(onClick = { engine.undo(); updateCounter++ }, enabled = !isPaused && !gameOver && engine.moveHistory.isNotEmpty(), modifier = Modifier.weight(1f), contentPadding = PaddingValues(8.dp), shape = MaterialTheme.shapes.medium, colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary, contentColor = MaterialTheme.colorScheme.onPrimary)) {
+                Button(onClick = { engine.undo(); updateState++ }, enabled = !isPaused && !gameOver && engine.moveHistory.isNotEmpty(), modifier = Modifier.weight(1f), contentPadding = PaddingValues(8.dp), shape = MaterialTheme.shapes.medium, colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary, contentColor = MaterialTheme.colorScheme.onPrimary)) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text("Undo", fontSize = 10.sp, fontWeight = FontWeight.Bold)
                     }
@@ -205,6 +248,13 @@ fun ChessScreen(navController: NavController) {
                 }
                 Button(onClick = { isPaused = !isPaused }, modifier = Modifier.weight(1f), shape = MaterialTheme.shapes.medium, contentPadding = PaddingValues(8.dp), colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surface, contentColor = MaterialTheme.colorScheme.onSurface)) {
                     Text(if (isPaused) "Play" else "Pause", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                }
+                Button(onClick = { 
+                    engine.getRandomMove()?.let { hint ->
+                        selectedPos = hint.from
+                    }
+                }, modifier = Modifier.weight(1f), shape = MaterialTheme.shapes.medium, contentPadding = PaddingValues(8.dp), colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primaryContainer, contentColor = MaterialTheme.colorScheme.onPrimaryContainer)) {
+                    Text("Hint", fontSize = 10.sp, fontWeight = FontWeight.Bold)
                 }
             }
 
@@ -235,15 +285,15 @@ fun ChessScreen(navController: NavController) {
         // Bottom Navigation Bar
         Row(modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface).padding(vertical = 12.dp), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
             Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable { }) {
-                Icon(androidx.compose.material.icons.Icons.Default.PlayArrow, contentDescription = "Game", tint = MaterialTheme.colorScheme.primary)
+                Icon(Icons.Default.PlayArrow, contentDescription = "Game", tint = MaterialTheme.colorScheme.primary)
                 Text("Game", fontSize = 10.sp, color = MaterialTheme.colorScheme.primary)
             }
             Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable { }) {
-                Icon(androidx.compose.material.icons.Icons.Default.Close, contentDescription = "Analysis", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                Icon(Icons.AutoMirrored.Filled.List, contentDescription = "Analysis", tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text("Analysis", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable { navController.navigate("home") }) {
-                Icon(androidx.compose.material.icons.Icons.Default.PlayArrow, contentDescription = "Ranking", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                Icon(Icons.Default.Home, contentDescription = "Ranking", tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text("Ranking", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
@@ -260,10 +310,21 @@ fun ChessScreen(navController: NavController) {
                         modifier = Modifier.padding(8.dp),
                         textAlign = androidx.compose.ui.text.style.TextAlign.Center
                     )
-                    Button(onClick = { /* trigger analysis */ }, modifier = Modifier.fillMaxWidth().padding(top = 16.dp)) {
+                    Button(onClick = { 
+                        engine.reset()
+                        gameOver = false
+                        isAnalyzing = false
+                        selectedPos = null
+                        updateState++
+                    }, modifier = Modifier.fillMaxWidth().padding(top = 16.dp)) {
+                        Text("New Game")
+                    }
+                    Button(onClick = { isAnalyzing = true }, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
                         Text("View Post-Game Analysis")
                     }
-                    Text("Tip: Your last knight move weakened the kingside. Try protecting the f2 square earlier.", fontSize = 12.sp, modifier = Modifier.padding(top = 16.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    if (isAnalyzing) {
+                        Text("Analysis: This engine is just for simple moves. In a real scenario, this would show heatmaps, move suggestions, and blunder detection.", fontSize = 14.sp, modifier = Modifier.padding(top = 8.dp), color = MaterialTheme.colorScheme.primary)
+                    }
                 }
             }
         }
