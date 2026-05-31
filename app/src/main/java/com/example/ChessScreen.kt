@@ -275,10 +275,21 @@ fun ChessScreen(navController: NavController, mode: String) {
                     Box(modifier = Modifier.fillMaxWidth().fillMaxHeight(fillHeight).background(Color.White).align(Alignment.BottomCenter))
                 }
 
-                ElevatedCard(
-                    modifier = Modifier.weight(1f).fillMaxHeight().padding(4.dp).graphicsLayer(translationX = shakeOffset.value).border(BorderStroke(2.dp, MaterialTheme.colorScheme.primary), MaterialTheme.shapes.medium), 
-                    elevation = CardDefaults.elevatedCardElevation(8.dp)
-                ) {
+                Row(modifier = Modifier.fillMaxWidth().weight(1f), verticalAlignment = Alignment.CenterVertically) {
+                    
+                    // Evaluation Bar
+                    val evalScore by androidx.compose.animation.core.animateFloatAsState(
+                        targetValue = if (engine.currentTurn == PieceColor.WHITE) 0.5f else 0.4f, // Dummy logic for eval
+                        animationSpec = androidx.compose.animation.core.tween(500)
+                    )
+                    Box(modifier = Modifier.fillMaxHeight().width(12.dp).background(Color.DarkGray)) {
+                        Box(modifier = Modifier.fillMaxWidth().fillMaxHeight(evalScore).background(Color.White).align(Alignment.BottomCenter))
+                    }
+                    
+                    ElevatedCard(
+                        modifier = Modifier.weight(1f).fillMaxHeight().padding(4.dp).graphicsLayer(translationX = shakeOffset.value).border(BorderStroke(2.dp, MaterialTheme.colorScheme.primary), MaterialTheme.shapes.medium), 
+                        elevation = CardDefaults.elevatedCardElevation(8.dp)
+                    ) {
                 val currentPaused by rememberUpdatedState(isPaused)
                 val currentGameOver by rememberUpdatedState(gameOver)
                 val currentSpectating by rememberUpdatedState(isSpectating)
@@ -506,12 +517,12 @@ fun ChessScreen(navController: NavController, mode: String) {
                                 if (!isBlindfold) {
                                     Text(
                                         text = getPieceSymbol(piece.type, piece.color),
-                                        fontSize = 42.sp, // Made pieces a bit bigger for better 3D look
+                                        fontSize = 48.sp, // Made pieces a bit bigger for better 3D look
                                         style = androidx.compose.ui.text.TextStyle(
                                             shadow = androidx.compose.ui.graphics.Shadow(
-                                                color = Color.Black.copy(alpha = 0.6f),
-                                                offset = Offset(4f, 6f),
-                                                blurRadius = 8f
+                                                color = Color.Black.copy(alpha = 0.8f),
+                                                offset = Offset(3f, 8f),
+                                                blurRadius = 4f
                                             )
                                         ),
                                         color = if (piece.color == PieceColor.WHITE) com.example.ui.theme.BoardPieceWhite else com.example.ui.theme.BoardPieceBlack
@@ -672,7 +683,15 @@ fun ChessScreen(navController: NavController, mode: String) {
                                 if (winner != null) {
                                     Text("Missed Mate in $mateInMoves", color = MaterialTheme.colorScheme.error, fontSize = 14.sp)
                                     Text("Match Evaluation Graph", fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 8.dp, bottom = 4.dp))
-                                    Canvas(modifier = Modifier.fillMaxWidth().height(80.dp).background(Color.DarkGray, shape = MaterialTheme.shapes.small).padding(8.dp)) {
+                                    var graphScrubPos by remember { mutableStateOf(-1f) }
+                                    Canvas(
+                                        modifier = Modifier.fillMaxWidth().height(80.dp).background(Color.DarkGray, shape = MaterialTheme.shapes.small).padding(8.dp)
+                                            .pointerInput(Unit) {
+                                                detectDragGestures { change, dragAmount ->
+                                                    graphScrubPos = change.position.x
+                                                }
+                                            }
+                                    ) {
                                         val path = androidx.compose.ui.graphics.Path()
                                         val points = engine.moveHistory.size
                                         val step = size.width / (if (points > 1) points - 1 else 1)
@@ -684,13 +703,23 @@ fun ChessScreen(navController: NavController, mode: String) {
                                             path.lineTo(i * step, currentY)
                                         }
                                         drawPath(path, color = Color.White, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 4f, cap = androidx.compose.ui.graphics.StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round))
+                                        
+                                        if (graphScrubPos >= 0f) {
+                                            drawLine(
+                                                color = Color.Yellow,
+                                                start = Offset(graphScrubPos.coerceIn(0f, size.width), 0f),
+                                                end = Offset(graphScrubPos.coerceIn(0f, size.width), size.height),
+                                                strokeWidth = 2f
+                                            )
+                                        }
                                     }
                                 }
                             }
                         }
                     }
-                }
+                } // End BoxWithConstraints
             }
+        } // End Row for Eval Bar + Board
         }
         
         // Settings Dialog
