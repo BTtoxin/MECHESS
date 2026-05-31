@@ -26,9 +26,15 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.border
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.navigation.NavController
 import com.example.chess.ChessEngine
 import com.example.chess.PieceColor
@@ -39,6 +45,8 @@ import kotlinx.coroutines.delay
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChessScreen(navController: NavController, isSpectating: Boolean) {
+    val haptics = LocalHapticFeedback.current
+    var isFlipped by remember { mutableStateOf(false) }
     val engine = remember { ChessEngine() }
     var selectedPos by remember { mutableStateOf<Position?>(null) }
     var updateState by remember { mutableStateOf(0) }
@@ -48,7 +56,16 @@ fun ChessScreen(navController: NavController, isSpectating: Boolean) {
     var gameOver by remember { mutableStateOf(false) }
     var winner by remember { mutableStateOf<PieceColor?>(null) }
     var isAnalyzing by remember { mutableStateOf(false) }
+    
+    // New Features: Settings
+    var showSettings by remember { mutableStateOf(false) }
+    var boardTheme by remember { mutableStateOf(0) } // 0: Default, 1: Wood, 2: Dark
+    var timerDuration by remember { mutableStateOf(600) }
+    var soundEnabled by remember { mutableStateOf(true) }
     val boardAlpha = remember { androidx.compose.animation.core.Animatable(1f) }
+    
+    val lastMove = engine.moveHistory.lastOrNull()
+    val isCheck = engine.isKingInCheck(engine.currentTurn)
 
     // Checkmate Animation
     LaunchedEffect(gameOver) {
@@ -108,7 +125,10 @@ fun ChessScreen(navController: NavController, isSpectating: Boolean) {
                     }
                 },
                 actions = {
-                    IconButton(onClick = { navController.navigate("settings") }) {
+                    IconButton(onClick = { isFlipped = !isFlipped }) {
+                        Icon(Icons.Default.Settings, contentDescription = "Flip Board") // Reuse settings icon for flip, or just add a better one
+                    }
+                    IconButton(onClick = { showSettings = true }) {
                         Icon(Icons.Default.Settings, contentDescription = "Settings")
                     }
                 },
@@ -128,7 +148,13 @@ fun ChessScreen(navController: NavController, isSpectating: Boolean) {
             }
 
             // Board Card
-            ElevatedCard(modifier = Modifier.fillMaxWidth().aspectRatio(1f).padding(4.dp), elevation = CardDefaults.elevatedCardElevation(8.dp)) {
+            if (isCheck && !gameOver) {
+                Text("Check!", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.titleMedium, modifier = Modifier.align(Alignment.CenterHorizontally))
+            }
+            ElevatedCard(
+                modifier = Modifier.fillMaxWidth().aspectRatio(1f).padding(4.dp).border(BorderStroke(2.dp, MaterialTheme.colorScheme.primary), MaterialTheme.shapes.medium), 
+                elevation = CardDefaults.elevatedCardElevation(8.dp)
+            ) {
                 val currentPaused by rememberUpdatedState(isPaused)
                 val currentGameOver by rememberUpdatedState(gameOver)
                 val currentSpectating by rememberUpdatedState(isSpectating)
@@ -138,10 +164,11 @@ fun ChessScreen(navController: NavController, isSpectating: Boolean) {
                         if (!currentPaused && !currentGameOver && !currentSpectating) {
                             val squareSizeX = size.width / 8
                             val squareSizeY = size.height / 8
-                            val c = (offset.x / squareSizeX).toInt()
-                            val r = (offset.y / squareSizeY).toInt()
+                            val c = if (isFlipped) 7 - (offset.x / squareSizeX).toInt() else (offset.x / squareSizeX).toInt()
+                            val r = if (isFlipped) 7 - (offset.y / squareSizeY).toInt() else (offset.y / squareSizeY).toInt()
                             
                             if (r in 0..7 && c in 0..7) {
+                                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                 val piece = engine.pieceAt(r, c)
                                 if (selectedPos != null) {
                                     if (engine.move(selectedPos!!, Position(r, c))) {
@@ -176,10 +203,13 @@ fun ChessScreen(navController: NavController, isSpectating: Boolean) {
                         
                         for (r in 0..7) {
                             for (c in 0..7) {
+                                val boardR = if (isFlipped) 7 - r else r
+                                val boardC = if (isFlipped) 7 - c else c
                                 val color = if ((r + c) % 2 == 0) lightColor else darkColor
-                                val isSelected = selectedPos?.row == r && selectedPos?.col == c
+                                val isSelected = selectedPos?.row == boardR && selectedPos?.col == boardC
+                                val isLastMove = (lastMove?.from?.row == boardR && lastMove?.from?.col == boardC) || (lastMove?.to?.row == boardR && lastMove?.to?.col == boardC)
                                 drawRect(
-                                    color = if (isSelected) Color(0x88FFFF00) else color,
+                                    color = if (isSelected) Color(0x88FFFF00) else if (isLastMove) Color(0x6600FF00) else color,
                                     topLeft = Offset(c * size.width / 8, r * size.height / 8),
                                     size = Size(size.width / 8, size.height / 8)
                                 )
@@ -190,9 +220,24 @@ fun ChessScreen(navController: NavController, isSpectating: Boolean) {
                     // Draw Pieces
                     for (r in 0..7) {
                         for (c in 0..7) {
-                            val piece = engine.pieceAt(r, c)
+                            val boardR = if (isFlipped) 7 - r else r
+                            val boardC = if (isFlipped) 7 - c else c
+                            val piece = engine.pieceAt(boardR, boardC)
+                            val isCheckKing = isCheck && piece?.type == PieceType.KING && piece.color == engine.currentTurn
+
                             if (piece != null) {
-                                Box(modifier = Modifier.offset(x = squareSize * c, y = squareSize * r).size(squareSize), contentAlignment = Alignment.Center) {
+                                Box(
+                                    modifier = Modifier
+                                        .offset(x = squareSize * c, y = squareSize * r)
+                                        .size(squareSize)
+                                        .semantics {
+                                            contentDescription = "${piece.type} ${piece.color} at ${'a'+boardC}${8-boardR}"
+                                        },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    if (isCheckKing) {
+                                        Box(modifier = Modifier.size(squareSize * 0.8f).background(Color.Red.copy(alpha = 0.5f), shape = CircleShape))
+                                    }
                                     Text(
                                         text = getPieceSymbol(piece.type, piece.color),
                                         fontSize = 32.sp,
@@ -255,6 +300,9 @@ fun ChessScreen(navController: NavController, isSpectating: Boolean) {
                     }
                 }, modifier = Modifier.weight(1f), shape = MaterialTheme.shapes.medium, contentPadding = PaddingValues(8.dp), colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primaryContainer, contentColor = MaterialTheme.colorScheme.onPrimaryContainer)) {
                     Text("Hint", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                }
+                Button(onClick = { /* Implement copy PGN */ }, modifier = Modifier.weight(1f), shape = MaterialTheme.shapes.medium, contentPadding = PaddingValues(8.dp), colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant, contentColor = MaterialTheme.colorScheme.onSurfaceVariant)) {
+                    Text("Copy PGN", fontSize = 10.sp, fontWeight = FontWeight.Bold)
                 }
             }
 
@@ -328,6 +376,33 @@ fun ChessScreen(navController: NavController, isSpectating: Boolean) {
                 }
             }
         }
+        
+        // Settings Dialog
+        if (showSettings) {
+            AlertDialog(
+                onDismissRequest = { showSettings = false },
+                title = { Text("Game Settings") },
+                text = {
+                    Column {
+                        Text("Timer Duration (mins)")
+                        Slider(value = timerDuration.toFloat() / 60, onValueChange = { timerDuration = (it * 60).toInt() }, valueRange = 1f..30f)
+                        Text("${timerDuration / 60} mins")
+                        
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("Sound Effects")
+                            Switch(checked = soundEnabled, onCheckedChange = { soundEnabled = it })
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = { 
+                        whiteTime = timerDuration
+                        blackTime = timerDuration
+                        showSettings = false 
+                    }) { Text("Apply") }
+                }
+            )
+        }
     }
 }
 
@@ -358,15 +433,38 @@ fun getPieceSymbol(type: PieceType, color: PieceColor): String {
     }
 }
 
-fun getPieceChar(type: PieceType): String {
+fun getPieceChar(type: com.example.chess.PieceType): String {
     return when(type) {
-        PieceType.KING -> "K"
-        PieceType.QUEEN -> "Q"
-        PieceType.ROOK -> "R"
-        PieceType.BISHOP -> "B"
-        PieceType.KNIGHT -> "N"
-        PieceType.PAWN -> ""
+        com.example.chess.PieceType.KING -> "K"
+        com.example.chess.PieceType.QUEEN -> "Q"
+        com.example.chess.PieceType.ROOK -> "R"
+        com.example.chess.PieceType.BISHOP -> "B"
+        com.example.chess.PieceType.KNIGHT -> "N"
+        com.example.chess.PieceType.PAWN -> ""
     }
+}
+
+// Function to generate PGN
+fun generatePGN(moves: List<com.example.chess.Move>): String {
+    val pgn = StringBuilder()
+    moves.chunked(2).forEachIndexed { index, pair ->
+        pgn.append("${index + 1}. ${formatMove(pair[0])} ")
+        if (pair.size > 1) pgn.append("${formatMove(pair[1])} ")
+    }
+    return pgn.toString()
+}
+
+fun formatMove(move: com.example.chess.Move): String {
+    val pieceType = when (move.pieceMoved.type) {
+        com.example.chess.PieceType.PAWN -> ""
+        com.example.chess.PieceType.KNIGHT -> "N"
+        com.example.chess.PieceType.BISHOP -> "B"
+        com.example.chess.PieceType.ROOK -> "R"
+        com.example.chess.PieceType.QUEEN -> "Q"
+        com.example.chess.PieceType.KING -> "K"
+    }
+    val capture = if (move.pieceCaptured != null) "x" else ""
+    return "$pieceType${('a' + move.to.col)}${8 - move.to.row}"
 }
 
 fun colChar(col: Int): Char {
