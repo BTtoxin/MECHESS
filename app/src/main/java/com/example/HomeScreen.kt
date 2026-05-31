@@ -55,8 +55,8 @@ fun HomeScreen(navController: NavController) {
         bottomBar = {
             NavigationBar {
                 NavigationBarItem(selected = true, onClick = {}, icon = { Icon(Icons.Default.Home, contentDescription = "Home") }, label = { Text("Home") })
-                NavigationBarItem(selected = false, onClick = { navController.navigate("game/pvc") }, icon = { Icon(Icons.Default.Star, contentDescription = "Puzzles") }, label = { Text("Puzzles") })
-                NavigationBarItem(selected = false, onClick = {}, icon = { Icon(Icons.Default.Info, contentDescription = "Learn") }, label = { Text("Learn") })
+                NavigationBarItem(selected = false, onClick = { navController.navigate("game/puzzles") }, icon = { Icon(Icons.Default.Star, contentDescription = "Puzzles") }, label = { Text("Puzzles") })
+                NavigationBarItem(selected = false, onClick = { navController.navigate("game/pvc") }, icon = { Icon(Icons.Default.Person, contentDescription = "Play AI") }, label = { Text("Play AI") })
                 NavigationBarItem(selected = false, onClick = { navController.navigate("game/spectate") }, icon = { Icon(Icons.Default.PlayArrow, contentDescription = "Watch") }, label = { Text("Watch") })
                 NavigationBarItem(selected = false, onClick = { navController.navigate("settings") }, icon = { Icon(Icons.Default.Menu, contentDescription = "More") }, label = { Text("More") })
             }

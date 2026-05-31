@@ -58,6 +58,9 @@ fun ChessScreen(navController: NavController, mode: String) {
             com.example.chess.ChessGameManager.savedEngine!!
         } else {
             val newEngine = ChessEngine()
+            if (mode == "puzzles") {
+                newEngine.setPuzzle1()
+            }
             com.example.chess.ChessGameManager.savedEngine = newEngine
             newEngine
         }
@@ -134,21 +137,21 @@ fun ChessScreen(navController: NavController, mode: String) {
                         
                     audioTrack?.play()
                     
-                    val freq1 = 261.63 // C4
-                    val freq2 = 329.63 // E4
-                    val freq3 = 392.00 // G4
+                    // Smooth ambient drone
+                    val droneFreq = 110.0 // A2
+                    val droneFreq2 = 164.81 // E3 
                     var t = 0.0
                     val dt = 1.0 / sampleRate
                     val buffer = ShortArray(1024)
                     
                     while (isLooping && isActive) {
                         for (i in buffer.indices) {
-                            val sample = Math.sin(2.0 * Math.PI * freq1 * t) * 0.1 +
-                                         Math.sin(2.0 * Math.PI * freq2 * t) * 0.05 +
-                                         Math.sin(2.0 * Math.PI * freq3 * t) * 0.025
-                            // Add slow modulation (LFO)
-                            val envelope = 0.5 + 0.5 * Math.sin(2.0 * Math.PI * 0.05 * t)
-                            buffer[i] = (sample * envelope * Short.MAX_VALUE).toInt().toShort()
+                            // Gentle slow moving envelope (period ~ 8 seconds)
+                            val envelope = 0.05 + 0.05 * Math.sin(2.0 * Math.PI * 0.125 * t)
+                            val sample = (Math.sin(2.0 * Math.PI * droneFreq * t) + 
+                                         0.5 * Math.sin(2.0 * Math.PI * droneFreq2 * t)) * envelope
+                            
+                            buffer[i] = (sample * Short.MAX_VALUE).toInt().toShort()
                             t += dt
                         }
                         audioTrack?.write(buffer, 0, buffer.size)
@@ -336,7 +339,7 @@ fun ChessScreen(navController: NavController, mode: String) {
                                 Text("Computer", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground, fontSize = 18.sp)
                                 Text(difficulty.name, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.background(Color.Red, shape = MaterialTheme.shapes.small).padding(horizontal = 4.dp, vertical = 2.dp))
                             }
-                            Text("Stockfish 16.1 · ELO ~${if (difficulty == com.example.chess.Difficulty.HARD) 2800 else if (difficulty == com.example.chess.Difficulty.MEDIUM) 1600 else 800}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text("Stockfish 16.1 · ELO ~${if (difficulty == com.example.chess.Difficulty.EXPERT) 3200 else if (difficulty == com.example.chess.Difficulty.HARD) 2800 else if (difficulty == com.example.chess.Difficulty.MEDIUM) 1600 else 800}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                     TimerComponent(blackTime)

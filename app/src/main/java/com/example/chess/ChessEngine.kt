@@ -9,7 +9,7 @@ object ChessGameManager {
 enum class PieceColor { WHITE, BLACK }
 enum class PieceType { PAWN, KNIGHT, BISHOP, ROOK, QUEEN, KING }
 
-enum class Difficulty { EASY, MEDIUM, HARD }
+enum class Difficulty { EASY, MEDIUM, HARD, EXPERT }
 
 data class Piece(val type: PieceType, val color: PieceColor, val id: java.util.UUID = java.util.UUID.randomUUID())
 
@@ -218,6 +218,22 @@ class ChessEngine {
         setupBoard()
     }
 
+    fun setPuzzle1() {
+        board = Array(8) { Array<Piece?>(8) { null } }
+        currentTurn = PieceColor.WHITE
+        moveHistory.clear()
+        // White to move, mate in 1
+        // King positions
+        board[0][6] = Piece(PieceType.KING, PieceColor.BLACK)
+        board[1][5] = Piece(PieceType.PAWN, PieceColor.BLACK)
+        board[1][6] = Piece(PieceType.PAWN, PieceColor.BLACK)
+        board[1][7] = Piece(PieceType.PAWN, PieceColor.BLACK)
+        board[7][4] = Piece(PieceType.KING, PieceColor.WHITE)
+        
+        // Queen checkmate setup
+        board[7][3] = Piece(PieceType.QUEEN, PieceColor.WHITE)
+    }
+
     fun getValidMovesFor(r: Int, c: Int): List<Position> {
         val validMoves = mutableListOf<Position>()
         val p = board[r][c] ?: return validMoves
@@ -262,7 +278,7 @@ class ChessEngine {
                 var bestScore = Int.MIN_VALUE
                 
                 // Sort moves (captures first)
-                possibleMoves.sortByDescending { it.pieceCaptured?.let { getPieceValue(it, 0, 0) } ?: 0 }
+                possibleMoves.sortByDescending { it.pieceCaptured?.let { Math.abs(getPieceValue(it, 0, 0)) } ?: 0 }
                 
                 for (move in possibleMoves) {
                     val p = board[move.from.row][move.from.col]
@@ -275,6 +291,25 @@ class ChessEngine {
                     board[move.from.row][move.from.col] = p
                     board[move.to.row][move.to.col] = captured
                     
+                    if (score > bestScore) {
+                        bestScore = score
+                        bestMove = move
+                    }
+                }
+                bestMove ?: possibleMoves.random()
+            }
+            com.example.chess.Difficulty.EXPERT -> {
+                var bestMove: Move? = null
+                var bestScore = Int.MIN_VALUE
+                possibleMoves.sortByDescending { it.pieceCaptured?.let { Math.abs(getPieceValue(it, 0, 0)) } ?: 0 }
+                for (move in possibleMoves) {
+                    val p = board[move.from.row][move.from.col]
+                    val captured = board[move.to.row][move.to.col]
+                    board[move.to.row][move.to.col] = p
+                    board[move.from.row][move.from.col] = null
+                    val score = -minimax(3, Int.MIN_VALUE, Int.MAX_VALUE, if (currentTurn == PieceColor.WHITE) PieceColor.BLACK else PieceColor.WHITE)
+                    board[move.from.row][move.from.col] = p
+                    board[move.to.row][move.to.col] = captured
                     if (score > bestScore) {
                         bestScore = score
                         bestMove = move
@@ -347,7 +382,7 @@ class ChessEngine {
             return if (isKingInCheck(turn)) -10000 else 0 // Checkmate vs stalemate
         }
         
-        possibleMoves.sortByDescending { it.pieceCaptured?.let { getPieceValue(it, 0, 0) } ?: 0 }
+        possibleMoves.sortByDescending { it.pieceCaptured?.let { Math.abs(getPieceValue(it, 0, 0)) } ?: 0 }
         
         var maxEval = Int.MIN_VALUE
         var a = alpha
