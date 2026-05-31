@@ -44,8 +44,7 @@ import com.example.chess.ChessEngine
 import com.example.chess.PieceColor
 import com.example.chess.PieceType
 import com.example.chess.Position
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -96,39 +95,78 @@ fun ChessScreen(navController: NavController, mode: String) {
     val boardAlpha = remember { androidx.compose.animation.core.Animatable(1f) }
     val shakeOffset = remember { androidx.compose.animation.core.Animatable(0f) }
     
-    // Background Music
-    val mediaPlayer = remember { android.media.MediaPlayer() }
-    
-    DisposableEffect(Unit) {
-        try {
-            val uri = android.media.RingtoneManager.getDefaultUri(android.media.RingtoneManager.TYPE_RINGTONE)
-            mediaPlayer.setDataSource(context, uri)
-            mediaPlayer.prepare()
-            mediaPlayer.isLooping = true
-            mediaPlayer.setVolume(0.2f, 0.2f)
-            if (musicEnabled) {
-                mediaPlayer.start()
+    // Background Music (Synth drone)
+    DisposableEffect(musicEnabled) {
+        prefs.edit().putBoolean("musicEnabled", musicEnabled).apply()
+        
+        var audioTrack: android.media.AudioTrack? = null
+        var isLooping = true
+        var job: kotlinx.coroutines.Job? = null
+        
+        if (musicEnabled) {
+            job = scope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                try {
+                    val sampleRate = 44100
+                    val minBufferSize = android.media.AudioTrack.getMinBufferSize(
+                        sampleRate,
+                        android.media.AudioFormat.CHANNEL_OUT_MONO,
+                        android.media.AudioFormat.ENCODING_PCM_16BIT
+                    )
+                    val bufferSize = if (minBufferSize > 0) minBufferSize.coerceAtLeast(sampleRate) else sampleRate
+                    
+                    audioTrack = android.media.AudioTrack.Builder()
+                        .setAudioAttributes(
+                            android.media.AudioAttributes.Builder()
+                                .setUsage(android.media.AudioAttributes.USAGE_GAME)
+                                .setContentType(android.media.AudioAttributes.CONTENT_TYPE_MUSIC)
+                                .build()
+                        )
+                        .setAudioFormat(
+                            android.media.AudioFormat.Builder()
+                                .setEncoding(android.media.AudioFormat.ENCODING_PCM_16BIT)
+                                .setSampleRate(sampleRate)
+                                .setChannelMask(android.media.AudioFormat.CHANNEL_OUT_MONO)
+                                .build()
+                        )
+                        .setBufferSizeInBytes(bufferSize)
+                        .setTransferMode(android.media.AudioTrack.MODE_STREAM)
+                        .build()
+                        
+                    audioTrack?.play()
+                    
+                    val freq1 = 261.63 // C4
+                    val freq2 = 329.63 // E4
+                    val freq3 = 392.00 // G4
+                    var t = 0.0
+                    val dt = 1.0 / sampleRate
+                    val buffer = ShortArray(1024)
+                    
+                    while (isLooping && isActive) {
+                        for (i in buffer.indices) {
+                            val sample = Math.sin(2.0 * Math.PI * freq1 * t) * 0.1 +
+                                         Math.sin(2.0 * Math.PI * freq2 * t) * 0.05 +
+                                         Math.sin(2.0 * Math.PI * freq3 * t) * 0.025
+                            // Add slow modulation (LFO)
+                            val envelope = 0.5 + 0.5 * Math.sin(2.0 * Math.PI * 0.05 * t)
+                            buffer[i] = (sample * envelope * Short.MAX_VALUE).toInt().toShort()
+                            t += dt
+                        }
+                        audioTrack?.write(buffer, 0, buffer.size)
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
             }
-        } catch (e: Exception) {
-            // Ignored
         }
+        
         onDispose {
+            isLooping = false
+            job?.cancel()
             try {
-                if (mediaPlayer.isPlaying) mediaPlayer.stop()
-                mediaPlayer.release()
+                audioTrack?.stop()
+                audioTrack?.release()
             } catch (e: Exception) {}
         }
-    }
-    
-    LaunchedEffect(musicEnabled) {
-        prefs.edit().putBoolean("musicEnabled", musicEnabled).apply()
-        try {
-            if (musicEnabled && !mediaPlayer.isPlaying) {
-                mediaPlayer.start()
-            } else if (!musicEnabled && mediaPlayer.isPlaying) {
-                mediaPlayer.pause()
-            }
-        } catch (e: Exception) {}
     }
     
     LaunchedEffect(soundEnabled) {
@@ -310,7 +348,7 @@ fun ChessScreen(navController: NavController, mode: String) {
                 Text("Captured: ", style = MaterialTheme.typography.labelSmall)
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                     items(whiteCaptured) { piece ->
-                        Text(getPieceSymbol(piece.type, piece.color), fontSize = 16.sp)
+                        Text(getPieceSymbol(piece.type, piece.color), fontSize = 16.sp, color = if (piece.color == PieceColor.WHITE) Color.White else Color.Black)
                     }
                 }
             }
@@ -582,7 +620,7 @@ fun ChessScreen(navController: NavController, mode: String) {
                                 if (!isBlindfold) {
                                     Text(
                                         text = getPieceSymbol(piece.type, piece.color),
-                                        fontSize = 58.sp, // Made pieces massive for better 3D look
+                                        fontSize = 42.sp, // Made pieces a bit smaller so they fit
                                         style = androidx.compose.ui.text.TextStyle(
                                             shadow = androidx.compose.ui.graphics.Shadow(
                                                 color = Color.Black.copy(alpha = 0.5f),
@@ -596,7 +634,7 @@ fun ChessScreen(navController: NavController, mode: String) {
                                             scaleY = if (isDragging) 1.2f else 1f,
                                             cameraDistance = 8f
                                         ),
-                                        color = if (piece.color == PieceColor.WHITE) com.example.ui.theme.BoardPieceWhite else com.example.ui.theme.BoardPieceBlack
+                                        color = if (piece.color == PieceColor.WHITE) Color.White else Color.Black
                                     )
                                 }
                             }
@@ -611,7 +649,7 @@ fun ChessScreen(navController: NavController, mode: String) {
                 Text("Captured: ", style = MaterialTheme.typography.labelSmall)
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                     items(blackCaptured) { piece ->
-                        Text(getPieceSymbol(piece.type, piece.color), fontSize = 16.sp)
+                        Text(getPieceSymbol(piece.type, piece.color), fontSize = 16.sp, color = if (piece.color == PieceColor.WHITE) Color.White else Color.Black)
                     }
                 }
             }                
@@ -933,23 +971,13 @@ fun formatTime(seconds: Int): String {
 }
 
 fun getPieceSymbol(type: PieceType, color: PieceColor): String {
-    return when(color) {
-        PieceColor.WHITE -> when(type) {
-            PieceType.KING -> "♔"
-            PieceType.QUEEN -> "♕"
-            PieceType.ROOK -> "♖"
-            PieceType.BISHOP -> "♗"
-            PieceType.KNIGHT -> "♘"
-            PieceType.PAWN -> "♙"
-        }
-        PieceColor.BLACK -> when(type) {
-            PieceType.KING -> "♚"
-            PieceType.QUEEN -> "♛"
-            PieceType.ROOK -> "♜"
-            PieceType.BISHOP -> "♝"
-            PieceType.KNIGHT -> "♞"
-            PieceType.PAWN -> "♟"
-        }
+    return when(type) {
+        PieceType.KING -> "♚"
+        PieceType.QUEEN -> "♛"
+        PieceType.ROOK -> "♜"
+        PieceType.BISHOP -> "♝"
+        PieceType.KNIGHT -> "♞"
+        PieceType.PAWN -> "♟"
     }
 }
 

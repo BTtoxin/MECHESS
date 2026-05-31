@@ -3,6 +3,8 @@ package com.example
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -53,7 +55,7 @@ fun HomeScreen(navController: NavController) {
         bottomBar = {
             NavigationBar {
                 NavigationBarItem(selected = true, onClick = {}, icon = { Icon(Icons.Default.Home, contentDescription = "Home") }, label = { Text("Home") })
-                NavigationBarItem(selected = false, onClick = {}, icon = { Icon(Icons.Default.Star, contentDescription = "Puzzles") }, label = { Text("Puzzles") })
+                NavigationBarItem(selected = false, onClick = { navController.navigate("game/pvc") }, icon = { Icon(Icons.Default.Star, contentDescription = "Puzzles") }, label = { Text("Puzzles") })
                 NavigationBarItem(selected = false, onClick = {}, icon = { Icon(Icons.Default.Info, contentDescription = "Learn") }, label = { Text("Learn") })
                 NavigationBarItem(selected = false, onClick = { navController.navigate("game/spectate") }, icon = { Icon(Icons.Default.PlayArrow, contentDescription = "Watch") }, label = { Text("Watch") })
                 NavigationBarItem(selected = false, onClick = { navController.navigate("settings") }, icon = { Icon(Icons.Default.Menu, contentDescription = "More") }, label = { Text("More") })
@@ -64,7 +66,7 @@ fun HomeScreen(navController: NavController) {
             modifier = Modifier.fillMaxSize().padding(padding).background(MaterialTheme.colorScheme.background).graphicsLayer {
                 alpha = alphaAnim.value
                 translationY = slideAnim.value
-            }
+            }.verticalScroll(rememberScrollState())
         ) {
             // User Header
             Row(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -110,6 +112,14 @@ fun HomeScreen(navController: NavController) {
             }
 
             Spacer(modifier = Modifier.weight(1f))
+            
+            Text("Game History", fontWeight = FontWeight.Bold, fontSize = 18.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+            Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                GameHistoryCard("Win", "vs Stockfish LVL 5", "Rapid • 10+0", "+12 Elo", MaterialTheme.colorScheme.primary)
+                GameHistoryCard("Loss", "vs Stockfish LVL 8", "Blitz • 5+0", "-8 Elo", MaterialTheme.colorScheme.error)
+                GameHistoryCard("Draw", "vs Local Player", "Bullet • 1+0", "+0 Elo", MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+
             Row(modifier = Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                  Button(onClick = { navController.navigate("game/pvp") }, modifier = Modifier.weight(1f).height(48.dp), shape = MaterialTheme.shapes.medium) {
                      Text("Play Offline 2P")
@@ -119,6 +129,26 @@ fun HomeScreen(navController: NavController) {
                          Text("Resume Match")
                      }
                  }
+            }
+        }
+    }
+}
+
+@Composable
+fun GameHistoryCard(result: String, opponent: String, format: String, eloChange: String, resultColor: androidx.compose.ui.graphics.Color) {
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        shape = MaterialTheme.shapes.small,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(result, fontWeight = FontWeight.Bold, color = resultColor, fontSize = 16.sp)
+                Text(opponent, fontSize = 14.sp)
+            }
+            Column(horizontalAlignment = Alignment.End) {
+                Text(eloChange, fontWeight = FontWeight.Bold, color = if (eloChange.startsWith("+")) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error)
+                Text(format, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }

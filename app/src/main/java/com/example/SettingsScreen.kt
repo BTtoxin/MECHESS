@@ -51,7 +51,19 @@ fun SettingsScreen(navController: NavController) {
         }
         
         Spacer(modifier = Modifier.weight(1f))
-        Button(onClick = { navController.popBackStack() }) {
+        Text(
+            "MECHESS", 
+            style = MaterialTheme.typography.titleLarge.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.ExtraBold),
+            color = MaterialTheme.colorScheme.primary,
+            letterSpacing = androidx.compose.ui.unit.TextUnit(4f, androidx.compose.ui.unit.TextUnitType.Sp)
+        )
+        Text(
+            "by Ashu mehta", 
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(bottom = 16.dp)
+        )
+        Button(onClick = { navController.popBackStack() }, modifier = Modifier.fillMaxWidth().height(48.dp)) {
             Text("Back")
         }
     }
