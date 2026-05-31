@@ -14,6 +14,26 @@ import kotlinx.coroutines.delay
 
 @Composable
 fun HomeScreen(navController: NavController) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val sharedPreferences = remember { context.getSharedPreferences("chess_prefs", android.content.Context.MODE_PRIVATE) }
+    var elo by remember { mutableStateOf(sharedPreferences.getInt("elo", 1200)) }
+    var gamesPlayed by remember { mutableStateOf(sharedPreferences.getInt("gamesPlayed", 0)) }
+    var wins by remember { mutableStateOf(sharedPreferences.getInt("wins", 0)) }
+
+    // Re-fetch when surface becomes visible, using a lifecycle effect could be better, but we can just use launched effect
+    LaunchedEffect(Unit) {
+        elo = sharedPreferences.getInt("elo", 1200)
+        gamesPlayed = sharedPreferences.getInt("gamesPlayed", 0)
+        wins = sharedPreferences.getInt("wins", 0)
+    }
+
+    val rank = when {
+        elo >= 2000 -> "Grandmaster"
+        elo >= 1600 -> "Master"
+        elo >= 1200 -> "Intermediate"
+        else -> "Beginner"
+    }
+
     Box(modifier = Modifier.fillMaxSize()) {
         FallingPiecesBackground()
         
@@ -25,7 +45,6 @@ fun HomeScreen(navController: NavController) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f), verticalArrangement = Arrangement.Center) {
             Text("MECHESS", fontSize = 48.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, letterSpacing = 2.sp)
             Text("by Ashu Mehta", fontSize = 12.sp, modifier = Modifier.padding(bottom = 32.dp), color = MaterialTheme.colorScheme.onSurfaceVariant, letterSpacing = 4.sp)
-
             
             Surface(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
@@ -34,22 +53,27 @@ fun HomeScreen(navController: NavController) {
                 border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
             ) {
                 Column(modifier = Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("Your Rank: Grandmaster", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                    Text("Your Rank: $rank", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                     Spacer(modifier = Modifier.height(8.dp))
-                    Text("Current Elo: 2450", color = MaterialTheme.colorScheme.onSurface)
-                    Text("Games Played: 142 | Won: 100", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
+                    Text("Current Elo: $elo", color = MaterialTheme.colorScheme.onSurface)
+                    Text("Games Played: $gamesPlayed | Won: $wins", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
                 }
             }
         }
         
         Column(verticalArrangement = Arrangement.spacedBy(16.dp), modifier = Modifier.fillMaxWidth()) {
-            Button(onClick = { navController.navigate("game") }, modifier = Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.medium, contentPadding = PaddingValues(16.dp)) {
+            if (com.example.chess.ChessGameManager.savedEngine != null && !com.example.chess.ChessGameManager.savedEngine!!.isCheckmate()) {
+                Button(onClick = { navController.navigate("game/resume") }, modifier = Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.medium, contentPadding = PaddingValues(16.dp), colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.tertiary, contentColor = MaterialTheme.colorScheme.onTertiary)) {
+                    Text("Resume Game", fontWeight = FontWeight.Bold)
+                }
+            }
+            Button(onClick = { navController.navigate("game/pvp") }, modifier = Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.medium, contentPadding = PaddingValues(16.dp)) {
                 Text("Play Local Multiplayer", fontWeight = FontWeight.Bold)
             }
-            Button(onClick = { navController.navigate("game") }, modifier = Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.medium, contentPadding = PaddingValues(16.dp), colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surface, contentColor = MaterialTheme.colorScheme.primary)) {
+            Button(onClick = { navController.navigate("game/pvc") }, modifier = Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.medium, contentPadding = PaddingValues(16.dp), colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surface, contentColor = MaterialTheme.colorScheme.primary)) {
                 Text("Play vs AI (Beginner)", fontWeight = FontWeight.Bold)
             }
-            Button(onClick = { navController.navigate("game/true") }, modifier = Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.medium, contentPadding = PaddingValues(16.dp), colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surface, contentColor = MaterialTheme.colorScheme.primary)) {
+            Button(onClick = { navController.navigate("game/spectate") }, modifier = Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.medium, contentPadding = PaddingValues(16.dp), colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surface, contentColor = MaterialTheme.colorScheme.primary)) {
                 Text("Spectate Live Game (AI Demo)", fontWeight = FontWeight.Bold)
             }
             Button(onClick = { navController.navigate("settings") }, modifier = Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.medium, contentPadding = PaddingValues(16.dp), colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surface, contentColor = MaterialTheme.colorScheme.primary)) {

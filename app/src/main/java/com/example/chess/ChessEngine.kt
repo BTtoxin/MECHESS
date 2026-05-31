@@ -2,6 +2,10 @@ package com.example.chess
 
 import kotlin.math.abs
 
+object ChessGameManager {
+    var savedEngine: ChessEngine? = null
+}
+
 enum class PieceColor { WHITE, BLACK }
 enum class PieceType { PAWN, KNIGHT, BISHOP, ROOK, QUEEN, KING }
 

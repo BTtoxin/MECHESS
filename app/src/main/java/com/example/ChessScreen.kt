@@ -48,10 +48,22 @@ import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ChessScreen(navController: NavController, isSpectating: Boolean) {
+fun ChessScreen(navController: NavController, mode: String) {
     val haptics = LocalHapticFeedback.current
     var isFlipped by remember { mutableStateOf(false) }
-    val engine = remember { ChessEngine() }
+    
+    // Resume facility
+    val engine = remember { 
+        if (mode == "resume" && com.example.chess.ChessGameManager.savedEngine != null) {
+            com.example.chess.ChessGameManager.savedEngine!!
+        } else {
+            val newEngine = ChessEngine()
+            com.example.chess.ChessGameManager.savedEngine = newEngine
+            newEngine
+        }
+    }
+    
+    val isSpectating = mode == "spectate"
     val context = androidx.compose.ui.platform.LocalContext.current
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     
@@ -86,13 +98,35 @@ fun ChessScreen(navController: NavController, isSpectating: Boolean) {
     LaunchedEffect(gameOver) {
         if (gameOver) {
             boardAlpha.animateTo(0.6f, animationSpec = androidx.compose.animation.core.tween(1000))
+            
+            // Update ELO
+            if (!isSpectating) {
+                val prefs = context.getSharedPreferences("chess_prefs", android.content.Context.MODE_PRIVATE)
+                val currentGames = prefs.getInt("gamesPlayed", 0)
+                val currentWins = prefs.getInt("wins", 0)
+                val currentElo = prefs.getInt("elo", 1200)
+
+                val newGames = currentGames + 1
+                var newWins = currentWins
+                var newElo = currentElo
+
+                // Assume Player is White
+                if (winner == PieceColor.WHITE) { 
+                    newWins += 1
+                    newElo += 25
+                } else if (winner == PieceColor.BLACK) {
+                    newElo -= 15
+                }
+
+                prefs.edit().putInt("gamesPlayed", newGames).putInt("wins", newWins).putInt("elo", newElo).apply()
+            }
         } else {
             boardAlpha.animateTo(1f, animationSpec = androidx.compose.animation.core.tween(500))
         }
     }
     
     var difficulty by remember { mutableStateOf(com.example.chess.Difficulty.MEDIUM) }
-    var gameMode by remember { mutableStateOf("PVC") } // "PVC" or "PVP"
+    var gameMode by remember { mutableStateOf(if (mode == "pvp") "PVP" else "PVC") } // "PVC" or "PVP"
     var isSpectatingMode by remember { mutableStateOf(isSpectating) }
 
     LaunchedEffect(isSpectatingMode, isPaused, gameOver, gameMode) {
