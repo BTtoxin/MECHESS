@@ -12,6 +12,7 @@ import androidx.navigation.NavController
 fun SettingsScreen(navController: NavController) {
     var soundEnabled by remember { mutableStateOf(true) }
     var animationsEnabled by remember { mutableStateOf(true) }
+    var engineEnabled by remember { mutableStateOf(true) }
     var selectedTheme by remember { mutableStateOf("Classic") }
 
     Column(
@@ -29,6 +30,12 @@ fun SettingsScreen(navController: NavController) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
             Text("Animations", modifier = Modifier.weight(1f))
             Switch(checked = animationsEnabled, onCheckedChange = { animationsEnabled = it })
+        }
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+            Text("Use Server-Side Analysis", modifier = Modifier.weight(1f))
+            Switch(checked = engineEnabled, onCheckedChange = { engineEnabled = it })
         }
         Spacer(modifier = Modifier.height(16.dp))
         

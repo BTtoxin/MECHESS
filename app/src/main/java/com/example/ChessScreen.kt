@@ -1,5 +1,6 @@
 package com.example
 
+import android.content.Context
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -48,6 +49,8 @@ fun ChessScreen(navController: NavController, isSpectating: Boolean) {
     val haptics = LocalHapticFeedback.current
     var isFlipped by remember { mutableStateOf(false) }
     val engine = remember { ChessEngine() }
+    val context = androidx.compose.ui.platform.LocalContext.current
+    
     var selectedPos by remember { mutableStateOf<Position?>(null) }
     var updateState by remember { mutableStateOf(0) }
     var isPaused by remember { mutableStateOf(false) }
@@ -62,10 +65,11 @@ fun ChessScreen(navController: NavController, isSpectating: Boolean) {
     var boardTheme by remember { mutableStateOf(0) } // 0: Default, 1: Wood, 2: Dark
     var timerDuration by remember { mutableStateOf(600) }
     var soundEnabled by remember { mutableStateOf(true) }
+    var isBlindfold by remember { mutableStateOf(false) } // Add Blindfold Mode
     val boardAlpha = remember { androidx.compose.animation.core.Animatable(1f) }
     
     val lastMove = engine.moveHistory.lastOrNull()
-    val isCheck = engine.isKingInCheck(engine.currentTurn)
+    val isCheck by remember(updateState) { derivedStateOf { engine.isKingInCheck(engine.currentTurn) } }
 
     // Checkmate Animation
     LaunchedEffect(gameOver) {
@@ -77,10 +81,12 @@ fun ChessScreen(navController: NavController, isSpectating: Boolean) {
     LaunchedEffect(isSpectating, isPaused, gameOver) {
         while (isSpectating && !isPaused && !gameOver) {
             delay(5000L)
-            engine.getRandomMove()?.let { move ->
-                engine.move(move.from, move.to)
-                updateState++
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+                engine.getRandomMove()?.let { move ->
+                    engine.move(move.from, move.to)
+                }
             }
+            updateState++
         }
     }
     LaunchedEffect(isPaused, gameOver) {
@@ -95,6 +101,22 @@ fun ChessScreen(navController: NavController, isSpectating: Boolean) {
                     if (blackTime <= 0) { gameOver = true; winner = PieceColor.WHITE }
                 }
             }
+        }
+    }
+    
+    // Simple list of pieces that updates only when necessary
+    val allPieces by remember(engine.moveHistory.size) {
+        derivedStateOf {
+            val pieces = mutableListOf<Triple<Int, Int, com.example.chess.Piece>>()
+            for (r in 0..7) {
+                for (c in 0..7) {
+                    val piece = engine.pieceAt(r, c)
+                    if (piece != null) {
+                        pieces.add(Triple(r, c, piece))
+                    }
+                }
+            }
+            pieces
         }
     }
     
@@ -218,32 +240,33 @@ fun ChessScreen(navController: NavController, isSpectating: Boolean) {
                     }
                     
                     // Draw Pieces
-                    for (r in 0..7) {
-                        for (c in 0..7) {
-                            val boardR = if (isFlipped) 7 - r else r
-                            val boardC = if (isFlipped) 7 - c else c
-                            val piece = engine.pieceAt(boardR, boardC)
-                            val isCheckKing = isCheck && piece?.type == PieceType.KING && piece.color == engine.currentTurn
+                    for ((r, c, piece) in allPieces) {
+                        val boardR = if (isFlipped) 7 - r else r
+                        val boardC = if (isFlipped) 7 - c else c
+                        val isCheckKing = isCheck && piece.type == PieceType.KING && piece.color == engine.currentTurn
 
-                            if (piece != null) {
-                                Box(
-                                    modifier = Modifier
-                                        .offset(x = squareSize * c, y = squareSize * r)
-                                        .size(squareSize)
-                                        .semantics {
-                                            contentDescription = "${piece.type} ${piece.color} at ${'a'+boardC}${8-boardR}"
-                                        },
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    if (isCheckKing) {
-                                        Box(modifier = Modifier.size(squareSize * 0.8f).background(Color.Red.copy(alpha = 0.5f), shape = CircleShape))
-                                    }
-                                    Text(
-                                        text = getPieceSymbol(piece.type, piece.color),
-                                        fontSize = 32.sp,
-                                        color = if (piece.color == PieceColor.WHITE) com.example.ui.theme.BoardPieceWhite else com.example.ui.theme.BoardPieceBlack
-                                    )
-                                }
+                        // Adjust drawing position based on flipped board
+                        val drawR = if (isFlipped) 7 - r else r
+                        val drawC = if (isFlipped) 7 - c else c
+
+                        Box(
+                            modifier = Modifier
+                                .offset(x = squareSize * drawC, y = squareSize * drawR)
+                                .size(squareSize)
+                                .semantics {
+                                    contentDescription = "${piece.type} ${piece.color} at ${'a'+boardC}${8-boardR}"
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (isCheckKing) {
+                                Box(modifier = Modifier.size(squareSize * 0.8f).background(Color.Red.copy(alpha = 0.5f), shape = CircleShape))
+                            }
+                            if (!isBlindfold) {
+                                Text(
+                                    text = getPieceSymbol(piece.type, piece.color),
+                                    fontSize = 32.sp,
+                                    color = if (piece.color == PieceColor.WHITE) com.example.ui.theme.BoardPieceWhite else com.example.ui.theme.BoardPieceBlack
+                                )
                             }
                         }
                     }
@@ -324,19 +347,18 @@ fun ChessScreen(navController: NavController, isSpectating: Boolean) {
                         Text("Ranked: Gold II • Elo: 1842", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
-                Box(modifier = Modifier.background(MaterialTheme.colorScheme.primary, shape = MaterialTheme.shapes.small).padding(horizontal = 16.dp, vertical = 6.dp)) {
-                    Text(formatTime(whiteTime), fontSize = 20.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimary)
-                }
+                // Use TimerComponent
+                TimerComponent(if (engine.currentTurn == PieceColor.WHITE) whiteTime else blackTime)
             }
         } // End weight(1f) column
 
         // Bottom Navigation Bar
         Row(modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface).padding(vertical = 12.dp), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable { }) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Icon(Icons.Default.PlayArrow, contentDescription = "Game", tint = MaterialTheme.colorScheme.primary)
                 Text("Game", fontSize = 10.sp, color = MaterialTheme.colorScheme.primary)
             }
-            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable { }) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Icon(Icons.AutoMirrored.Filled.List, contentDescription = "Analysis", tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text("Analysis", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
@@ -392,6 +414,10 @@ fun ChessScreen(navController: NavController, isSpectating: Boolean) {
                             Text("Sound Effects")
                             Switch(checked = soundEnabled, onCheckedChange = { soundEnabled = it })
                         }
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("Blindfold Mode")
+                            Switch(checked = isBlindfold, onCheckedChange = { isBlindfold = it })
+                        }
                     }
                 },
                 confirmButton = {
@@ -403,6 +429,13 @@ fun ChessScreen(navController: NavController, isSpectating: Boolean) {
                 }
             )
         }
+    }
+}
+
+@Composable
+fun TimerComponent(seconds: Int) {
+    Box(modifier = Modifier.background(MaterialTheme.colorScheme.primary, shape = MaterialTheme.shapes.small).padding(horizontal = 16.dp, vertical = 6.dp)) {
+        Text(formatTime(seconds), fontSize = 20.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimary)
     }
 }
 
